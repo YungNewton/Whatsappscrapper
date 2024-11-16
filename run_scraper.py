@@ -13,6 +13,11 @@ BOT_TOKEN = "7766870224:AAGwLCBlye9lPfxZeSWnJ9_Anji7LBmW_qs"  # Replace with you
 
 app = Flask(__name__)  # Flask application
 
+# Start the scraper in a separate thread
+def start_scraper_thread():
+    scraper_thread = threading.Thread(target=run_scraper_periodically, daemon=True)
+    scraper_thread.start()
+
 def scrape_last_10_minutes():
     """
     Runs the WhatsApp scraper to scrape messages from the last 10 minutes.
@@ -79,15 +84,10 @@ def run_scraper_periodically():
 def home():
     return "WhatsApp scraper is running!"
 
-# Start the scraper in a separate thread
-def start_scraper_thread():
-    scraper_thread = threading.Thread(target=run_scraper_periodically, daemon=True)
-    scraper_thread.start()
+# Start the scraper thread before the app starts
+start_scraper_thread()  # Ensure this runs immediately when the app starts
 
 if __name__ == "__main__":
-    # Start the scraper in the background
-    start_scraper_thread()
-
     # Get the port from the environment variable or default to 5000
     port = int(os.getenv("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
