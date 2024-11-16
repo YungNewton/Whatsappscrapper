@@ -1,13 +1,17 @@
 import time
 import threading
 from datetime import datetime, timedelta
+from flask import Flask
 from WhatsAppScraper import WhatsAppScraper  # Import your scraper class
 from TelegramPoster import TelegramPoster  # Import your TelegramPoster class
+import os
 
 # Configuration
 CHAT_NAMES = ["Bobo and daughter's pi group😌.", "Duke Residency & Apartments", "Emmy"]  # Replace with your chat names
 CHANNEL_USERNAME = "@newton_dev2"  # Replace with your Telegram channel username
 BOT_TOKEN = "7766870224:AAGwLCBlye9lPfxZeSWnJ9_Anji7LBmW_qs"  # Replace with your bot token
+
+app = Flask(__name__)  # Flask application
 
 def scrape_last_10_minutes():
     """
@@ -60,7 +64,6 @@ def scrape_last_10_minutes():
     except Exception as e:
         print(f"Error during scraping: {e}")
 
-# Schedule the scraper to run every 10 minutes
 def run_scraper_periodically():
     """
     Runs the scraper every 10 minutes in a loop.
@@ -71,15 +74,20 @@ def run_scraper_periodically():
         print("Waiting for the next run...")
         time.sleep(600)  # Wait 10 minutes (600 seconds) before running again
 
+# Flask routes
+@app.route("/")
+def home():
+    return "WhatsApp scraper is running!"
 
-# Run the script in a separate thread
-if __name__ == "__main__":
+# Start the scraper in a separate thread
+def start_scraper_thread():
     scraper_thread = threading.Thread(target=run_scraper_periodically, daemon=True)
     scraper_thread.start()
 
-    # Keep the main thread alive
-    try:
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        print("Script stopped manually.")
+if __name__ == "__main__":
+    # Start the scraper in the background
+    start_scraper_thread()
+
+    # Get the port from the environment variable or default to 5000
+    port = int(os.getenv("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
