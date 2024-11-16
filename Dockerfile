@@ -4,6 +4,9 @@ FROM python:3.9-slim
 # Set working directory
 WORKDIR /app
 
+# Set environment variables to disable Python buffering
+ENV PYTHONUNBUFFERED=1
+
 # Copy project files
 COPY . .
 

@@ -38,7 +38,7 @@ def scrape_last_10_minutes():
     try:
         # Calculate the start and end time for scraping
         current_time = datetime.now()
-        start_time = current_time - timedelta(minutes=10)
+        start_time = current_time - timedelta(minutes=5)
         time_start = start_time.strftime("%I:%M %p")  # Format: 12-hour time (e.g., "05:54 PM")
         time_end = current_time.strftime("%I:%M %p")
 
@@ -91,7 +91,7 @@ def run_scraper_periodically():
         print(f"Starting scraper at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         scrape_last_10_minutes()
         print("Waiting to begin the next run...")
-        if not stop_event.wait(600):  # Wait 10 minutes or exit if stopped
+        if not stop_event.wait(300):  # Wait 10 minutes or exit if stopped
             continue
 
 
