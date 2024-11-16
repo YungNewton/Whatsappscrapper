@@ -18,24 +18,27 @@ RUN apt-get update && apt-get install -y \
     libfontconfig1 \
     libxss1 \
     libappindicator3-1 \
-    libgbm1 && \
+    libgbm1 \
+    ca-certificates && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install Google Chrome
 RUN wget -q -O google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
-    dpkg -i google-chrome.deb || apt-get -f install -y && \
+    apt-get update && apt-get install -y ./google-chrome.deb && \
     rm google-chrome.deb
 
-# Install ChromeDriver
+# Install ChromeDriver (matching Chrome version)
 RUN CHROME_VERSION=$(google-chrome --version | awk '{print $3}') && \
-    wget -q "https://chromedriver.storage.googleapis.com/$CHROME_VERSION/chromedriver_linux64.zip" && \
+    MAJOR_VERSION=$(echo $CHROME_VERSION | cut -d. -f1) && \
+    wget -q "https://chromedriver.storage.googleapis.com/$CHROME_VERSION/chromedriver_linux64.zip" || \
+    wget -q "https://chromedriver.storage.googleapis.com/$MAJOR_VERSION.0.0/chromedriver_linux64.zip" && \
     unzip chromedriver_linux64.zip -d /usr/local/bin && \
     rm chromedriver_linux64.zip
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Expose port (optional)
+# Expose port (optional, if Flask app is used)
 EXPOSE 5000
 
 # Default command
