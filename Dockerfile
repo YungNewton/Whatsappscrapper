@@ -20,6 +20,10 @@ RUN apt-get update && apt-get install -y \
     libxss1 \
     libappindicator3-1 \
     libgbm1 \
+    libasound2 \
+    fonts-liberation \
+    xdg-utils \
+    libvulkan1 \
     ca-certificates && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
@@ -31,8 +35,8 @@ RUN curl -LO https://dl.google.com/linux/direct/google-chrome-stable_current_amd
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Expose port (if using Flask or similar)
+# Expose port (if Flask or similar app is used)
 EXPOSE 5000
 
-# Set the default command to run your script
+# Set default command to run your Python script
 CMD ["python", "run_scraper.py"]
