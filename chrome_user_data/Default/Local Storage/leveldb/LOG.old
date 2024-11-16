@@ -1,0 +1,6 @@
+2024/11/16-16:24:34.789 2d03 Reusing MANIFEST /Users/decagon/quick_campaigns_backend/product_upload_bot/chrome_user_data/Default/Local Storage/leveldb/MANIFEST-000001
+2024/11/16-16:24:34.805 2d03 Recovering log #99
+2024/11/16-16:24:34.807 2d03 Reusing old log /Users/decagon/quick_campaigns_backend/product_upload_bot/chrome_user_data/Default/Local Storage/leveldb/000099.log 
+2024/11/16-16:25:17.107 4903 Level-0 table #102: started
+2024/11/16-16:25:17.121 4903 Level-0 table #102: 15443 bytes OK
+2024/11/16-16:25:17.154 4903 Delete type=0 #99

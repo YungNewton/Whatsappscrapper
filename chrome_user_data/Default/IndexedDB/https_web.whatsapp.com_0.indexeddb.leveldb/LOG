@@ -1,0 +1,15 @@
+2024/11/16-16:26:45.055 14f03 Reusing MANIFEST /Users/decagon/quick_campaigns_backend/product_upload_bot/chrome_user_data/Default/IndexedDB/https_web.whatsapp.com_0.indexeddb.leveldb/MANIFEST-000001
+2024/11/16-16:26:45.056 14f03 Recovering log #543
+2024/11/16-16:26:45.065 14f03 Reusing old log /Users/decagon/quick_campaigns_backend/product_upload_bot/chrome_user_data/Default/IndexedDB/https_web.whatsapp.com_0.indexeddb.leveldb/000543.log 
+2024/11/16-16:26:46.159 9903 Level-0 table #549: started
+2024/11/16-16:26:46.181 9903 Level-0 table #549: 140181 bytes OK
+2024/11/16-16:26:46.221 9903 Delete type=0 #543
+2024/11/16-16:26:46.223 9903 Manual compaction at level-0 from '\x00\xa5\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00\xa6\x00\x00\x00' @ 0 : 0; will stop at (end)
+2024/11/16-16:26:46.325 14d03 Compacting 1@1 + 2@2 files
+2024/11/16-16:26:46.524 14d03 Generated table #550@1: 73422 keys, 2232666 bytes
+2024/11/16-16:26:46.646 14d03 Generated table #551@1: 18200 keys, 1223567 bytes
+2024/11/16-16:26:46.646 14d03 Compacted 1@1 + 2@2 files => 3456233 bytes
+2024/11/16-16:26:46.682 14d03 compacted to: files[ 0 0 2 0 0 0 0 ]
+2024/11/16-16:26:46.682 14d03 Delete type=2 #549
+2024/11/16-16:26:46.683 14d03 Delete type=2 #545
+2024/11/16-16:26:46.683 14d03 Delete type=2 #546

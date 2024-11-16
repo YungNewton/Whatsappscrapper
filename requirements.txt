@@ -1,0 +1,5 @@
+selenium
+webdriver-manager
+Flask
+Flask-Cors
+requests
