@@ -5,6 +5,7 @@ import threading
 from WhatsAppScraper import WhatsAppScraper  # Assuming this is the scraper class
 from TelegramPoster import TelegramPoster
 import sqlite3
+import subprocess
 import os
 
 app = Flask(__name__, static_folder='build', static_url_path='/')
@@ -16,6 +17,7 @@ CORS(app, supports_credentials=True)  # Allow cookies in cross-origin requests
 # Shared variables for managing scraper instance and cancellation
 scraper = None
 cancel_event = threading.Event()
+scraper_process = None
 
 # Initialize database with a single admin user
 def init_db():
@@ -30,6 +32,33 @@ def init_db():
         cursor.execute("INSERT INTO users (email, password) VALUES (?, ?)", ('admin@user.com', 'adminpassword'))
         conn.commit()
     conn.close()
+
+def start_scraper(chat_names, channel_username):
+    """
+    Starts the `run_scraper.py` script with the given chat names and channel username.
+    """
+    try:
+        if scraper_process and scraper_process.poll() is None:  # Check if the process is running
+            print("Stopping the existing scraper process...")
+            scraper_process.terminate()  # Send SIGTERM
+            scraper_process.wait()  # Wait for it to stop
+            print("Existing scraper process stopped.")
+            
+        # Prepare the arguments for the run_scraper.py script
+        chat_names_str = ",".join(chat_names)  # Convert list to comma-separated string
+        args = [
+            "python3", "run_scraper.py",
+            "--chatNames", chat_names_str,
+            "--channelUsername", channel_username
+        ]
+
+        # Run the process in detached mode
+        subprocess.Popen(
+            args, stdout=None, stderr=None, stdin=None, close_fds=True
+        )
+    except Exception as e:
+        print(f"Error starting run_scraper.py: {e}")
+        raise
 
 # Static file serving
 @app.route('/<path:path>')
@@ -132,6 +161,8 @@ def scrape():
                 # scraper.scroll_to_target_date()
                 # scraper.extract_messages_with_images()
                 # scraper.extract_messages_with_videos()
+                # Call the function to start `run_scraper.py`
+                start_scraper(chat_names, channel_username)
                 results.append({"chatName": chat_name, "status": "Completed"})
             except Exception as e:
                 print(f"Error scraping chat '{chat_name}': {e}")
@@ -161,8 +192,9 @@ def cancel_scraping():
         return jsonify({"message": "Scraping process cancelled successfully!"}), 200
     else:
         return jsonify({"message": "No scraping process is currently running."}), 400
+    
 
 # Initialize the database
 if __name__ == "__main__":
     init_db()
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=5000,debug=True)

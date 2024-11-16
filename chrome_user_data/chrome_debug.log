@@ -1,11 +1,13 @@
-[4815:259:1116/190808.946260:WARNING:chrome_main_delegate.cc(744)] This is Chrome version 130.0.6723.119 (not a warning)
-[4815:259:1116/190810.357230:INFO:chrome_browser_cloud_management_controller.cc(196)] No machine level policy manager exists.
-[4824:259:1116/190810.848804:WARNING:viz_main_impl.cc(85)] VizNullHypothesis is disabled (not a warning)
-[4815:259:1116/190814.181706:INFO:CONSOLE(154)] "Event handler of 'x-storagemutated-1' event must be added on the initial evaluation of worker script.", source: https://static.whatsapp.net/rsrc.php/v3/yK/r/MQnWAa2ZiGz.js (154)
-[4815:259:1116/190823.533324:INFO:CONSOLE(71)] "ErrorUtils caught an error:
+[9856:259:1116/211052.413345:WARNING:chrome_main_delegate.cc(744)] This is Chrome version 130.0.6723.119 (not a warning)
+[9856:259:1116/211052.713840:INFO:chrome_browser_cloud_management_controller.cc(196)] No machine level policy manager exists.
+[9862:259:1116/211053.138185:WARNING:viz_main_impl.cc(85)] VizNullHypothesis is disabled (not a warning)
+[9856:259:1116/211053.937992:INFO:CONSOLE(154)] "Event handler of 'x-storagemutated-1' event must be added on the initial evaluation of worker script.", source: https://static.whatsapp.net/rsrc.php/v3/yK/r/MQnWAa2ZiGz.js (154)
+[9856:259:1116/211057.368768:INFO:CONSOLE(71)] "ErrorUtils caught an error:
 
 Converting to a string will drop content data. Hash="undefined" Translation="{user_name} added {names}" Content="{"key":null,"ref":null,"props":{"contact":{"id":"2348052377853@c.us","type":"in","isContactSyncCompleted":1,"textStatusLastUpdateTime":-1,"syncToAddressbook":false},"showNotifyName":true,"elevatedPushNamesEnabled":true,"onClick":null}}" (type=object,Object)
 
 Subsequent non-fatal errors won't be logged; see https://fburl.com/debugjs.", source: https://static.whatsapp.net/rsrc.php/v3/yG/r/neg6V1FU4PW.js (71)
-[4838:47379:1116/190832.383825:ERROR:ffmpeg_common.cc(970)] Unsupported pixel format: -1
-[4838:47379:1116/190832.771530:ERROR:ffmpeg_common.cc(970)] Unsupported pixel format: -1
+[9868:49207:1116/211101.829270:ERROR:ffmpeg_common.cc(970)] Unsupported pixel format: -1
+[9868:49207:1116/211101.869485:ERROR:ffmpeg_common.cc(970)] Unsupported pixel format: -1
+[9863:8199:1116/211115.083678:WARNING:sqlite_persistent_store_backend_base.cc(198)] Failed to post task from FlushAndNotifyInBackground@net/extras/sqlite/sqlite_persistent_store_backend_base.cc:248 to client_task_runner_.
+[9863:8199:1116/211115.084327:WARNING:sqlite_persistent_store_backend_base.cc(198)] Failed to post task from FlushAndNotifyInBackground@net/extras/sqlite/sqlite_persistent_store_backend_base.cc:248 to client_task_runner_.

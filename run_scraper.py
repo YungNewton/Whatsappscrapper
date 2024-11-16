@@ -1,22 +1,35 @@
 import time
 import threading
+import argparse
 from datetime import datetime, timedelta
-from flask import Flask
 from WhatsAppScraper import WhatsAppScraper  # Import your scraper class
 from TelegramPoster import TelegramPoster  # Import your TelegramPoster class
-import os
 
-# Configuration
-CHAT_NAMES = ["Bobo and daughter's pi group😌.", "Duke Residency & Apartments", "Emmy"]  # Replace with your chat names
-CHANNEL_USERNAME = "@newton_dev2"  # Replace with your Telegram channel username
+# Global Configuration
+CHAT_NAMES = []  # Will be dynamically updated
+CHANNEL_USERNAME = ""  # Will be dynamically updated
 BOT_TOKEN = "7766870224:AAGwLCBlye9lPfxZeSWnJ9_Anji7LBmW_qs"  # Replace with your bot token
 
-app = Flask(__name__)  # Flask application
+# Event and thread for managing scraper
+stop_event = threading.Event()
+scraper_thread = None  # Declare and initialize here globally
 
-# Start the scraper in a separate thread
-def start_scraper_thread():
-    scraper_thread = threading.Thread(target=run_scraper_periodically, daemon=True)
-    scraper_thread.start()
+
+def parse_arguments():
+    """
+    Parse command-line arguments for chat names and channel username.
+    """
+    parser = argparse.ArgumentParser(description="Run WhatsApp Scraper.")
+    parser.add_argument("--chatNames", required=True, help="Comma-separated list of chat names to scrape")
+    parser.add_argument("--channelUsername", required=True, help="Telegram channel username for posting")
+
+    args = parser.parse_args()
+
+    # Update global configuration
+    global CHAT_NAMES, CHANNEL_USERNAME
+    CHAT_NAMES = args.chatNames.split(",")  # Convert comma-separated string to list
+    CHANNEL_USERNAME = args.channelUsername
+
 
 def scrape_last_10_minutes():
     """
@@ -69,25 +82,40 @@ def scrape_last_10_minutes():
     except Exception as e:
         print(f"Error during scraping: {e}")
 
+
 def run_scraper_periodically():
     """
     Runs the scraper every 10 minutes in a loop.
     """
-    while True:
+    while not stop_event.is_set():
         print(f"Starting scraper at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         scrape_last_10_minutes()
-        print("Waiting for the next run...")
-        time.sleep(600)  # Wait 10 minutes (600 seconds) before running again
+        print("Waiting to begin the next run...")
+        if not stop_event.wait(600):  # Wait 10 minutes or exit if stopped
+            continue
 
-# Flask routes
-@app.route("/")
-def home():
-    return "WhatsApp scraper is running!"
-
-# Start the scraper thread before the app starts
-start_scraper_thread()  # Ensure this runs immediately when the app starts
 
 if __name__ == "__main__":
-    # Get the port from the environment variable or default to 5000
-    port = int(os.getenv("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    # Parse arguments first
+    parse_arguments()
+
+    # Check if a scraper thread already exists and is running
+    if scraper_thread is not None and scraper_thread.is_alive():
+        print("Stopping existing scraper...")
+        stop_event.set()  # Signal the thread to stop
+        scraper_thread.join()  # Wait for the thread to finish
+
+    # Clear the stop event and start a new thread
+    stop_event.clear()
+    scraper_thread = threading.Thread(target=run_scraper_periodically, daemon=True)
+    scraper_thread.start()
+
+    # Keep the main thread alive
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("Stopping scraper manually...")
+        stop_event.set()  # Signal the thread to stop
+        if scraper_thread:
+            scraper_thread.join()  # Ensure the thread has stopped
