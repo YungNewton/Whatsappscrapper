@@ -67,6 +67,11 @@ def serve_static_file(path):
         return send_from_directory(app.static_folder, path)
     return send_from_directory(app.static_folder, 'index.html')
 
+@app.errorhandler(404)
+def handle_404(e):
+    # Catch-all route for unknown paths
+    return send_from_directory(app.static_folder, 'index.html')
+
 @app.route('/')
 def serve_index():
     return send_from_directory(app.static_folder, 'index.html')
