@@ -35,8 +35,5 @@ RUN curl -LO https://dl.google.com/linux/direct/google-chrome-stable_current_amd
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Expose port (if Flask or similar app is used)
-EXPOSE 5000
-
 # Set default command to run your Python script
 CMD ["python", "run_scraper.py"]
