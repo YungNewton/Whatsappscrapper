@@ -139,53 +139,56 @@ def scrape():
         channel_username = f"@{channel_username}"
 
     try:
-        # Initialize TelegramPoster
+        # Commenting out the TelegramPoster initialization
         telegram_poster = TelegramPoster(
             bot_token="7766870224:AAGwLCBlye9lPfxZeSWnJ9_Anji7LBmW_qs",
             channel_username=channel_username
         )
         print("TelegramPoster initialized")
 
-        # Initialize WhatsAppScraper
-        scraper = WhatsAppScraper(
-            chat_name=None,  # Chat name will be set dynamically
-            date_limit=date_limit,
-            scrape_all=scrape_all,
-            new_session=new_session,
-            cancel_event=cancel_event,
-            telegram_poster=telegram_poster
-        )
-        scraper.login()
+        # Commenting out the WhatsAppScraper initialization
+        # scraper = WhatsAppScraper(
+        #     chat_name=None,  # Chat name will be set dynamically
+        #     date_limit=date_limit,
+        #     scrape_all=scrape_all,
+        #     new_session=new_session,
+        #     cancel_event=cancel_event,
+        #     telegram_poster=telegram_poster
+        # )
+        # scraper.login()
 
         results = []
         for chat_name in chat_names:
-            print(f"Starting scrape for chat: {chat_name}")
+            print(f"Skipping scrape for chat: {chat_name}")
+            # Commenting out the actual scraping logic
             try:
-                scraper.chat_name = chat_name
-                # scraper.open_chat()
-                # scraper.scroll_to_target_date()
-                # scraper.extract_messages_with_images()
-                # scraper.extract_messages_with_videos()
-                # Call the function to start `run_scraper.py`
+            #     scraper.chat_name = chat_name
+            #     # scraper.open_chat()
+            #     # scraper.scroll_to_target_date()
+            #     # scraper.extract_messages_with_images()
+            #     # scraper.extract_messages_with_videos()
+            #     # Call the function to start `run_scraper.py`
                 start_scraper(chat_names, channel_username)
-                results.append({"chatName": chat_name, "status": "Completed"})
+            #     results.append({"chatName": chat_name, "status": "Completed"})
             except Exception as e:
                 print(f"Error scraping chat '{chat_name}': {e}")
-                results.append({"chatName": chat_name, "status": f"Error: {e}"})
+            #     results.append({"chatName": chat_name, "status": f"Error: {e}"})
 
-        return jsonify({"message": "Scraping completed for all chats", "results": results}), 200
+        # Return a placeholder response
+        return jsonify({"message": "Scraping skipped for all chats", "results": results}), 200
 
     except Exception as e:
         print(f"Exception encountered: {e}")
         return jsonify({"message": f"Error: {str(e)}"}), 500
 
     finally:
-        if scraper is not None:
-            try:
-                scraper.close()
-                print("Scraper closed successfully")
-            except Exception as e:
-                print(f"Error while closing scraper: {e}")
+        # Commenting out the scraper cleanup
+        # if scraper is not None:
+        #     try:
+        #         scraper.close()
+        #         print("Scraper closed successfully")
+        #     except Exception as e:
+        #         print(f"Error while closing scraper: {e}")
         scraper = None
 
 # Cancel scraping endpoint
