@@ -47,7 +47,7 @@ def start_scraper(chat_names, channel_username):
         # Prepare the arguments for the run_scraper.py script
         chat_names_str = ",".join(chat_names)  # Convert list to comma-separated string
         args = [
-            "python", "run_scraper.py",
+            "python3", "run_scraper.py",
             "--chatNames", chat_names_str,
             "--channelUsername", channel_username
         ]
