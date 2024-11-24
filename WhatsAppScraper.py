@@ -21,7 +21,7 @@ import threading
 import re
 
 class WhatsAppScraper:
-    def __init__(self, chat_name, date_limit=None, scrape_all=False, new_session=False, cancel_event=None, telegram_poster=None, headless=False):
+    def __init__(self, chat_name, date_limit=None, scrape_all=False, new_session=False, cancel_event=None, telegram_poster=None, headless=True):
         self.chat_name = chat_name
         self.date_limit = date_limit
         self.scrape_all = scrape_all

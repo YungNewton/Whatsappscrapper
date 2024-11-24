@@ -7,6 +7,7 @@ from TelegramPoster import TelegramPoster
 import sqlite3
 import subprocess
 import os
+from save_chrome_user_data import WhatsAppLogin
 
 app = Flask(__name__, static_folder='build', static_url_path='/')
 app.secret_key = 'super_secret_key'
@@ -146,33 +147,16 @@ def scrape():
         )
         print("TelegramPoster initialized")
 
-        # Commenting out the WhatsAppScraper initialization
-        # scraper = WhatsAppScraper(
-        #     chat_name=None,  # Chat name will be set dynamically
-        #     date_limit=date_limit,
-        #     scrape_all=scrape_all,
-        #     new_session=new_session,
-        #     cancel_event=cancel_event,
-        #     telegram_poster=telegram_poster
-        # )
-        # scraper.login()
-
         results = []
         for chat_name in chat_names:
             print(f"Skipping scrape for chat: {chat_name}")
             # Commenting out the actual scraping logic
             try:
-            #     scraper.chat_name = chat_name
-            #     # scraper.open_chat()
-            #     # scraper.scroll_to_target_date()
-            #     # scraper.extract_messages_with_images()
-            #     # scraper.extract_messages_with_videos()
-            #     # Call the function to start `run_scraper.py`
+                # Call the function to start `run_scraper.py`
                 start_scraper(chat_names, channel_username)
-            #     results.append({"chatName": chat_name, "status": "Completed"})
+
             except Exception as e:
                 print(f"Error scraping chat '{chat_name}': {e}")
-            #     results.append({"chatName": chat_name, "status": f"Error: {e}"})
 
         # Return a placeholder response
         return jsonify({"message": "success", "results": results}), 200
@@ -182,13 +166,6 @@ def scrape():
         return jsonify({"message": f"Error: {str(e)}"}), 500
 
     finally:
-        # Commenting out the scraper cleanup
-        # if scraper is not None:
-        #     try:
-        #         scraper.close()
-        #         print("Scraper closed successfully")
-        #     except Exception as e:
-        #         print(f"Error while closing scraper: {e}")
         scraper = None
 
 # Cancel scraping endpoint
@@ -201,6 +178,49 @@ def cancel_scraping():
     else:
         return jsonify({"message": "No scraping process is currently running."}), 400
     
+@app.route('/link_whatsapp', methods=['POST'])
+def link_whatsapp():
+    """
+    Start a WhatsApp Web login session.
+    """
+    try:
+        print("[DEBUG] Received request to initiate WhatsApp login.")
+
+        # Initialize the WhatsAppLogin class
+        whatsapp_login = WhatsAppLogin()
+
+        # Verify that the VNC server is running
+        vnc_server_check = subprocess.run(
+            ["pgrep", "-x", "Xtigervnc"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
+
+        if vnc_server_check.returncode != 0:
+            error_msg = "[ERROR] VNC server is not running. Please ensure the VNC server is up and accessible."
+            print(error_msg)
+            return jsonify({"message": error_msg}), 500
+        print("[DEBUG] VNC server is confirmed to be running.")
+
+        # Start the WhatsApp login process
+        print("[DEBUG] Starting WhatsApp login process in a new thread.")
+        threading.Thread(target=whatsapp_login.open_whatsapp_web, daemon=True).start()
+
+        # Prepare the VNC link for the user
+        vnc_link = "http://localhost:8080/vnc.html"  # Replace <localhost> with your actual server IP or domain
+        print(f"[DEBUG] Generated VNC link: {vnc_link}")
+
+        # Return the response with the VNC link
+        return jsonify({
+            "message": "WhatsApp login initiated. Use the link to complete login.",
+            "vnc_link": vnc_link
+        }), 200
+
+    except Exception as e:
+        # Log and return any exceptions
+        error_message = f"[ERROR] Exception occurred while starting WhatsApp login: {e}"
+        print(error_message)
+        return jsonify({"message": error_message}), 500
 
 # Initialize the database
 if __name__ == "__main__":
