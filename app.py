@@ -8,6 +8,7 @@ import sqlite3
 import subprocess
 import os
 from save_chrome_user_data import WhatsAppLogin
+import atexit
 
 app = Flask(__name__, static_folder='build', static_url_path='/')
 app.secret_key = 'super_secret_key'
@@ -19,6 +20,8 @@ CORS(app, supports_credentials=True)  # Allow cookies in cross-origin requests
 scraper = None
 cancel_event = threading.Event()
 scraper_process = None
+scraper_lock = threading.Lock()  # Global lock for thread safety
+
 
 # Initialize database with a single admin user
 def init_db():
@@ -36,30 +39,48 @@ def init_db():
 
 def start_scraper(chat_names, channel_username):
     """
-    Starts the `run_scraper.py` script with the given chat names and channel username.
+    Stops any existing scraper process and starts a new one.
+    Ensures only one scraper process runs at a time using a thread-safe lock.
     """
-    try:
-        if scraper_process and scraper_process.poll() is None:  # Check if the process is running
-            print("Stopping the existing scraper process...")
-            scraper_process.terminate()  # Send SIGTERM
-            scraper_process.wait()  # Wait for it to stop
-            print("Existing scraper process stopped.")
-            
-        # Prepare the arguments for the run_scraper.py script
-        chat_names_str = ",".join(chat_names)  # Convert list to comma-separated string
-        args = [
-            "python3", "run_scraper.py",
-            "--chatNames", chat_names_str,
-            "--channelUsername", channel_username
-        ]
+    global scraper_process
+    with scraper_lock:  # Ensure thread-safe access
+        try:
+            # Check if a scraper process is already running
+            if scraper_process and scraper_process.poll() is None:
+                print("Stopping the existing scraper process...")
+                scraper_process.terminate()  # Send SIGTERM to stop the process
+                scraper_process.wait()  # Wait for the process to terminate
+                print("Existing scraper process stopped.")
 
-        # Run the process in detached mode
-        subprocess.Popen(
-            args, stdout=None, stderr=None, stdin=None, close_fds=True
-        )
-    except Exception as e:
-        print(f"Error starting run_scraper.py: {e}")
-        raise
+            # Prepare arguments for the new scraper process
+            print("Starting a new scraper process...")
+            chat_names_str = ",".join(chat_names)  # Convert list to comma-separated string
+            args = [
+                "python3", "run_scraper.py",
+                "--chatNames", chat_names_str,
+                "--channelUsername", channel_username
+            ]
+
+            # Start the new process
+            scraper_process = subprocess.Popen(
+                args, stdout=None, stderr=None, stdin=None, close_fds=True
+            )
+            print(f"New scraper process started with PID {scraper_process.pid}")
+
+        except Exception as e:
+            print(f"Error managing scraper process: {e}")
+            raise
+
+def cleanup():
+    global scraper_process
+    if scraper_process and scraper_process.poll() is None:
+        print("Stopping scraper process during cleanup...")
+        scraper_process.terminate()
+        scraper_process.wait()
+        print("Scraper process stopped.")
+
+# Register cleanup function
+atexit.register(cleanup)
 
 # Static file serving
 @app.route('/<path:path>')
@@ -207,7 +228,7 @@ def link_whatsapp():
         threading.Thread(target=whatsapp_login.open_whatsapp_web, daemon=True).start()
 
         # Prepare the VNC link for the user
-        vnc_link = "http://localhost:8080/vnc.html"  # Replace <localhost> with your actual server IP or domain
+        vnc_link = "http://34.56.26.96:8080/vnc.html"  # Replace <localhost> with your actual server IP or domain
         print(f"[DEBUG] Generated VNC link: {vnc_link}")
 
         # Return the response with the VNC link

@@ -3,3 +3,5 @@ webdriver-manager
 Flask
 Flask-Cors
 requests
+flask-sock
+yagmail

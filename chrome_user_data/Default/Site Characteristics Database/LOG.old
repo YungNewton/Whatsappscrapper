@@ -1,0 +1,6 @@
+2024/11/25-21:12:32.649 14c03 Log #6: 14 ops saved to Table #7 OK
+2024/11/25-21:12:32.665 14c03 Archiving /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmpx7tx4foh/Default/Site Characteristics Database/000006.log: OK
+2024/11/25-21:12:32.666 14c03 Table #4: 2 entries OK
+2024/11/25-21:12:32.666 14c03 Table #7: 14 entries OK
+2024/11/25-21:12:32.668 14c03 Archiving /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmpx7tx4foh/Default/Site Characteristics Database/MANIFEST-000001: OK
+2024/11/25-21:12:32.692 14c03 **** Repaired leveldb /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmpx7tx4foh/Default/Site Characteristics Database; recovered 2 files; 495 bytes. Some data may have been lost. ****

@@ -1,6 +1,7 @@
 import os
 import time
 from io import BytesIO
+import shutil
 import tempfile
 import requests
 import base64
@@ -19,22 +20,49 @@ from webdriver_manager.chrome import ChromeDriverManager
 import calendar
 import threading
 import re
+import yagmail
+
+# Email configuration
+YAGMAIL_USER = "your_email@example.com"
+YAGMAIL_PASSWORD = "your_app_specific_password"
+NOTIFICATION_RECIPIENTS = ["coursechief5@gmail.com", "isaacnewtonahanmisi@gmail.com"]
+
+def send_session_invalid_email():
+    """
+    Sends an email notification when the WhatsApp session is no longer valid.
+    """
+    try:
+        yag = yagmail.SMTP(YAGMAIL_USER, YAGMAIL_PASSWORD)
+        subject = "WhatsApp Session Invalid"
+        body = (
+            "The WhatsApp session used by the scraper is no longer valid. "
+            "Please log in again to continue scraping. "
+            "If this was unexpected, please ensure your session has not been terminated by another device."
+        )
+        yag.send(to=NOTIFICATION_RECIPIENTS, subject=subject, contents=body)
+        print("Session invalid email sent successfully.")
+    except Exception as e:
+        print(f"Failed to send session invalid email: {e}")
 
 class WhatsAppScraper:
     def __init__(self, chat_name, date_limit=None, scrape_all=False, new_session=False, cancel_event=None, telegram_poster=None, headless=True):
         self.chat_name = chat_name
         self.date_limit = date_limit
         self.scrape_all = scrape_all
-        self.user_data_dir = os.path.join(os.getcwd(), "chrome_user_data") if not new_session else None
+        self.original_user_data_dir = os.path.join(os.getcwd(), "chrome_user_data")
+        self.user_data_dir = tempfile.mkdtemp()
         self.cancel_event = cancel_event or threading.Event()
         self.telegram_poster = telegram_poster
-        self.headless = headless  # Defaults to False (head mode)
+        self.headless = headless
+        self.setup_symlinks()
         self.driver = self.init_driver()
 
     def init_driver(self):
+        """
+        Initialize the WebDriver with the temporary user data directory.
+        """
         chrome_options = Options()
-        if self.user_data_dir:
-            chrome_options.add_argument(f"--user-data-dir={self.user_data_dir}")
+        chrome_options.add_argument(f"--user-data-dir={self.user_data_dir}")
         chrome_options.add_argument("--disable-webrtc")
         chrome_options.add_argument("--disable-media-stream")
         chrome_options.add_argument("--no-sandbox")
@@ -42,12 +70,30 @@ class WhatsAppScraper:
         chrome_options.add_argument("--start-maximized")
 
         if self.headless:
-            chrome_options.add_argument("--headless")  # Enable headless mode
-            chrome_options.add_argument("--disable-gpu")  # Disable GPU for headless mode
-            chrome_options.add_argument("--window-size=1920,1080")  # Ensure consistent rendering
+            chrome_options.add_argument("--headless")
+            chrome_options.add_argument("--disable-gpu")
+            chrome_options.add_argument("--window-size=1280,720")
 
         driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
         return driver
+
+    def setup_symlinks(self):
+        """
+        Create symlinks for files and directories in the original user data directory.
+        """
+        try:
+            if os.path.exists(self.original_user_data_dir):
+                for item in os.listdir(self.original_user_data_dir):
+                    src = os.path.join(self.original_user_data_dir, item)
+                    dest = os.path.join(self.user_data_dir, item)
+                    # Symlink instead of copying
+                    if not os.path.exists(dest):
+                        os.symlink(src, dest)
+                print(f"Symlinks created for user data in: {self.user_data_dir}")
+            else:
+                print(f"Original user data directory not found: {self.original_user_data_dir}")
+        except Exception as e:
+            print(f"Error setting up symlinks: {e}")
 
     def login(self):
         if self.cancel_event.is_set():
@@ -59,12 +105,18 @@ class WhatsAppScraper:
             self.wait_for_login()
 
     def is_session_valid(self):
+        """
+        Checks if the WhatsApp session is still valid.
+        If not, sends an email notification.
+        """
         try:
             WebDriverWait(self.driver, 10).until(
                 EC.presence_of_element_located((By.XPATH, '//span[@data-icon="chats-filled"]'))
             )
             return True
         except:
+            print("WhatsApp session is no longer valid.")
+            send_session_invalid_email()  # Trigger email notification
             return False
 
     def wait_for_login(self):
@@ -425,7 +477,17 @@ class WhatsAppScraper:
             print(f"Finished processing {len(video_messages)} video messages.")
 
     def close(self):
-        self.driver.quit()
+        """
+        Clean up the WebDriver and the temporary user data directory.
+        """
+        try:
+            if self.driver:
+                self.driver.quit()
+            if os.path.exists(self.user_data_dir):
+                shutil.rmtree(self.user_data_dir, ignore_errors=True)
+                print(f"Temporary user data directory deleted: {self.user_data_dir}")
+        except Exception as e:
+            print(f"Error during cleanup: {e}")
 
 # Usage example
 if __name__ == "__main__":

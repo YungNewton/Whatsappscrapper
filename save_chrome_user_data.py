@@ -1,5 +1,5 @@
 import os
-import time
+import shutil
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -13,6 +13,17 @@ class WhatsAppLogin:
     def __init__(self, chrome_user_data_dir="chrome_user_data"):
         self.chrome_user_data_dir = os.path.join(os.getcwd(), chrome_user_data_dir)
         self.driver = None
+        self.clear_user_data()
+
+    def clear_user_data(self):
+        """
+        Delete the chrome_user_data directory to start fresh.
+        """
+        if os.path.exists(self.chrome_user_data_dir):
+            print(f"Deleting existing user data directory: {self.chrome_user_data_dir}")
+            shutil.rmtree(self.chrome_user_data_dir)
+        else:
+            print(f"No existing user data directory found: {self.chrome_user_data_dir}")
 
     def init_driver(self):
         """
@@ -24,10 +35,9 @@ class WhatsAppLogin:
         chrome_options.add_argument("--disable-dev-shm-usage")
         chrome_options.add_argument("--start-maximized")
         chrome_options.add_argument("--window-size=1280,720")
-        chrome_options.binary_location = "/usr/bin/google-chrome"  # Set Chrome binary path
+        # chrome_options.binary_location = "/usr/bin/google-chrome"  # Set Chrome binary path if needed
 
         self.driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
-
         self.driver.set_window_size(1280, 720)
 
     def open_whatsapp_web(self):
@@ -59,6 +69,7 @@ class WhatsAppLogin:
         if self.driver:
             self.driver.quit()
             print("Browser closed.")
+
 
 # Example usage (if running independently)
 if __name__ == "__main__":
