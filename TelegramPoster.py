@@ -4,7 +4,7 @@ from io import BytesIO
 class TelegramPoster:
     def __init__(self, bot_token, channel_username):
         self.bot_token = bot_token
-        self.channel_username = channel_username
+        self.destination = channel_username  # Can be username or chat ID
         self.api_url = f"https://api.telegram.org/bot{self.bot_token}/sendPhoto"
 
     def post_image(self, image_data, caption):
@@ -17,12 +17,12 @@ class TelegramPoster:
         if isinstance(image_data, str):  # image_data is a file path
             with open(image_data, "rb") as file:
                 files = {'photo': file}
-                data = {'chat_id': self.channel_username, 'caption': caption}
+                data = {'chat_id': self.destination, 'caption': caption}
                 response = requests.post(self.api_url, data=data, files=files)
         elif isinstance(image_data, BytesIO):  # image_data is a BytesIO object
             image_data.seek(0)  # Ensure we're reading from the beginning
             files = {'photo': ('image.png', image_data, 'image/png')}
-            data = {'chat_id': self.channel_username, 'caption': caption}
+            data = {'chat_id': self.destination, 'caption': caption}
             response = requests.post(self.api_url, data=data, files=files)
         else:
             print("Error: Unsupported image data type.")

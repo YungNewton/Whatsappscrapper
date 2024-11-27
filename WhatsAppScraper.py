@@ -16,6 +16,7 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
+from selenium.common.exceptions import StaleElementReferenceException
 from webdriver_manager.chrome import ChromeDriverManager
 import calendar
 import threading
@@ -23,9 +24,9 @@ import re
 import yagmail
 
 # Email configuration
-YAGMAIL_USER = "your_email@example.com"
-YAGMAIL_PASSWORD = "your_app_specific_password"
-NOTIFICATION_RECIPIENTS = ["coursechief5@gmail.com", "isaacnewtonahanmisi@gmail.com"]
+YAGMAIL_USER = "isaacnewtonahanmisi@gmail.com"
+YAGMAIL_PASSWORD = "muid bjaw knqe adig"
+NOTIFICATION_RECIPIENTS = ["isaacnewtonahanmisi@gmail.com"]
 
 def send_session_invalid_email():
     """
@@ -45,8 +46,8 @@ def send_session_invalid_email():
         print(f"Failed to send session invalid email: {e}")
 
 class WhatsAppScraper:
-    def __init__(self, chat_name, date_limit=None, scrape_all=False, new_session=False, cancel_event=None, telegram_poster=None, headless=True):
-        self.chat_name = chat_name
+    def __init__(self, chat_names, date_limit=None, scrape_all=False, new_session=False, cancel_event=None, telegram_poster=None, headless=True):
+        self.chat_names = chat_names  # List of chat names
         self.date_limit = date_limit
         self.scrape_all = scrape_all
         self.original_user_data_dir = os.path.join(os.getcwd(), "chrome_user_data")
@@ -95,11 +96,28 @@ class WhatsAppScraper:
         except Exception as e:
             print(f"Error setting up symlinks: {e}")
 
+    def refresh_element(self, driver, locator):
+        """
+        Refreshes a WebDriver element reference by re-locating it.
+        Args:
+            driver: The WebDriver instance.
+            locator: The locator tuple (By, value) for the element.
+        Returns:
+            A fresh WebDriver element.
+        """
+        try:
+            return driver.find_element(*locator)
+        except StaleElementReferenceException:
+            print("Element went stale. Re-locating...")
+            return WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located(locator)
+        )
+
     def login(self):
         if self.cancel_event.is_set():
             return
         self.driver.get("https://web.whatsapp.com")
-        time.sleep(2)
+        time.sleep(5)
         if not self.is_session_valid():
             print("Session invalid. Please log in manually.")
             self.wait_for_login()
@@ -125,10 +143,94 @@ class WhatsAppScraper:
         )
         print("Login detected successfully.")
 
-    def open_chat(self):
-        if self.cancel_event.is_set():
-            return
+    def scrape_chats(self, time_start, time_end):
+        """
+        Scrapes messages for all chats in `self.chat_names`, prioritizing archived chats first,
+        then normal chats for those not found in archived.
+        """
+        try:
+            processed_chats = set()
+            chats_not_found = set(self.chat_names)  # Track chats that are not found
 
+            # Step 1: Scrape Archived Chats
+            print("Scraping archived chats...")
+            try:
+                archived_button = WebDriverWait(self.driver, 10).until(
+                    EC.element_to_be_clickable((By.XPATH, '//button[@aria-label="Archived "]'))
+                )
+                archived_button.click()
+                print("Navigated to Archived Chats section.")
+
+                # Refresh the `pane-side` element to avoid stale references
+                WebDriverWait(self.driver, 10).until(
+                    EC.presence_of_element_located((By.ID, 'pane-side'))
+                )
+                print("Refreshed chat list for archived chats.")
+                
+
+                for chat_name in self.chat_names:
+                    if chat_name in processed_chats:
+                        continue  # Skip already processed chats
+                    try:
+                        print(f"Attempting to find and scrape archived chat: {chat_name}")
+                        self.open_chat(chat_name)
+                        self.scroll_to_target_date(time_start=time_start, time_end=time_end)
+                        self.extract_messages_with_images(time_start, time_end)
+                        print(f"Scraping completed for archived chat: {chat_name}")
+                        processed_chats.add(chat_name)  # Mark chat as processed
+                    except Exception as e:
+                        print(f"Error scraping archived chat '{chat_name}'")
+                        chats_not_found.add(chat_name)  # Mark chat as not found
+
+                # Navigate back to the main chat panel
+                back_button = WebDriverWait(self.driver, 10).until(
+                    EC.element_to_be_clickable((By.XPATH, '//div[@aria-label="Back"]'))
+                )
+                back_button.click()
+                print("Returned to the main chat panel after scraping archived chats.")
+            except TimeoutException:
+                print("Timeout: Could not locate Archived Chats button or navigation elements.")
+            except Exception as e:
+                print(f"Error while navigating or scraping archived chats: {e}")
+
+            # Step 2: Scrape Normal Chats
+            print("Scraping normal chats...")
+            pane_side = self.driver.find_element(By.ID, 'pane-side')
+            while chats_not_found:
+                for chat_name in list(chats_not_found):
+                    if chat_name in processed_chats:
+                        continue  # Skip already processed chats
+                    try:
+                        print(f"Attempting to find and scrape normal chat: {chat_name}")
+                        self.open_chat(chat_name)
+                        self.scroll_to_target_date(time_start=time_start, time_end=time_end)
+                        self.extract_messages_with_images(time_start, time_end)
+                        print(f"Scraping completed for normal chat: {chat_name}")
+                        processed_chats.add(chat_name)  # Mark chat as processed
+                        chats_not_found.remove(chat_name)  # Remove from not found list
+                    except Exception as e:
+                        print(f"Error scraping normal chat '{chat_name}': {e}")
+
+                # Scroll pane-side to load more chats
+                last_scroll_position = self.driver.execute_script("return arguments[0].scrollTop", pane_side)
+                self.driver.execute_script("arguments[0].scrollTop += 200", pane_side)
+                time.sleep(2)  # Allow time for chats to load
+                new_scroll_position = self.driver.execute_script("return arguments[0].scrollTop", pane_side)
+
+                # Stop if no new chats are being loaded
+                if last_scroll_position == new_scroll_position:
+                    print("No more chats to load.")
+                    break
+
+            print("Scraping completed for all chats.")
+
+        except Exception as e:
+            print(f"Error while scraping chats: {e}")
+
+    def open_chat(self, chat_name):
+        """
+        Open a specific chat by its name, scrolling if necessary.
+        """
         pane_side = self.driver.find_element(By.ID, 'pane-side')
 
         def escape_xpath_string(s):
@@ -138,27 +240,27 @@ class WhatsAppScraper:
                 return f'"{s}"'
             return f"'{s}'"
 
-        chat_list_xpath = f"//span[@title={escape_xpath_string(self.chat_name)}]"
-        
+        chat_list_xpath = f"//span[@title={escape_xpath_string(chat_name)}]"
+
         try:
             # Check if the chat is already visible before scrolling
             chat = pane_side.find_element(By.XPATH, chat_list_xpath)
             ActionChains(self.driver).move_to_element(chat).perform()
-            print(f"Chat '{self.chat_name}' is already visible. Clicking on it.")
+            print(f"Chat '{chat_name}' is already visible. Clicking on it.")
             chat.click()
             return
         except NoSuchElementException:
-            print(f"Chat '{self.chat_name}' is not immediately visible. Scrolling to find it...")
+            print(f"Chat '{chat_name}' is not immediately visible. Scrolling to find it...")
 
         while True:
             try:
                 chat = pane_side.find_element(By.XPATH, chat_list_xpath)
                 ActionChains(self.driver).move_to_element(chat).perform()
-                print(f"Chat '{self.chat_name}' is now visible. Clicking on it.")
+                print(f"Chat '{chat_name}' is now visible. Clicking on it.")
                 chat.click()
                 return
             except NoSuchElementException:
-                print(f"Chat '{self.chat_name}' not immediately visible. Scrolling to find it...")
+                print(f"Chat '{chat_name}' not visible. Scrolling further...")
                 self.driver.execute_script("arguments[0].scrollTop += 200", pane_side)
                 time.sleep(2)  # Allow time for chats to load
 
@@ -167,7 +269,7 @@ class WhatsAppScraper:
                 self.driver.execute_script("arguments[0].scrollTop += 200", pane_side)
                 new_scroll_position = self.driver.execute_script("return arguments[0].scrollTop", pane_side)
                 if last_scroll_position == new_scroll_position:
-                    raise Exception(f"Chat '{self.chat_name}' not found.")
+                    raise Exception(f"Chat '{chat_name}' not found.")
 
     def scroll_to_target_date(self, target_date=None, time_start=None, time_end=None):
         """
@@ -176,18 +278,22 @@ class WhatsAppScraper:
         Stops scrolling when the message's timestamp or date is within the provided range.
         """
         try:
+            # Parse target date and time range if provided
             if target_date:
                 target_date = datetime.strptime(target_date, "%m/%d/%Y")
             time_start_dt = datetime.strptime(time_start, "%I:%M %p") if time_start else None
             time_end_dt = datetime.strptime(time_end, "%I:%M %p") if time_end else None
 
-            message_container = WebDriverWait(self.driver, 10).until(
-                EC.presence_of_element_located((By.XPATH, '//div[contains(@class, "_amjv")]'))
-            )
+            # Locate the initial message container
+            message_container_locator = (By.XPATH, '//div[contains(@class, "_amjv")]')
+            message_container = self.refresh_element(self.driver, message_container_locator)
             previous_height = None
 
             while True:
-                # Check for "load older messages" button and click it
+                # Refresh message container to avoid stale element references
+                message_container = self.refresh_element(self.driver, message_container_locator)
+
+                # Check for and click the "load older messages" button, if present
                 try:
                     load_more_button = self.driver.find_element(By.XPATH, '//button[contains(@class, "x14m1o6m x126m2zf x1b9z3ur x9f619 x1rg5ohu x1okw0bk x193iq5w x123j3cw xn6708d x10b6aqq x1ye3gou x13a8xbf xdod15v x2b8uid x1lq5wgf xgqcy7u x30kzoy x9jhf4c")]')
                     load_more_button.click()
@@ -196,13 +302,17 @@ class WhatsAppScraper:
                 except NoSuchElementException:
                     pass
 
-                # Send multiple Page Up keystrokes to scroll continuously
+                # Perform scrolling to load more messages
                 for _ in range(12):
-                    message_container.send_keys(Keys.PAGE_UP)
-                    time.sleep(1)
+                    try:
+                        message_container.send_keys(Keys.PAGE_UP)
+                        time.sleep(1)
+                    except StaleElementReferenceException:
+                        print("Container went stale during scroll. Refreshing...")
+                        message_container = self.refresh_element(self.driver, message_container_locator)
 
-                # Process messages to find the earliest visible message
-                date_elements = self.driver.find_elements(By.XPATH, '//div[@class="_amk4 _amkb"]/span[@class="_ao3e"]')
+                # Process date elements to locate the target date
+                date_elements = message_container.find_elements(By.XPATH, '//div[@class="_amk4 _amkb"]/span[@class="_ao3e"]')
                 for date_element in date_elements:
                     try:
                         date_text = date_element.text
@@ -213,13 +323,13 @@ class WhatsAppScraper:
                             if target_date and message_date < target_date:
                                 print("Reached messages older than the target date.")
                                 return
-
+                    except StaleElementReferenceException:
+                        print("Date element went stale. Skipping...")
                     except ValueError:
                         print("Error parsing date:", date_element.text)
 
-                # Check for time filtering
-                # Process image messages
-                image_messages = self.driver.find_elements(
+                # Check and process image messages for time range
+                image_messages = message_container.find_elements(
                     By.XPATH,
                     '//div[contains(@class, "message-in") or contains(@class, "message-out")]'
                     '//div[contains(@role, "button") and contains(@aria-label, "Open picture")]'
@@ -227,27 +337,34 @@ class WhatsAppScraper:
                 )
                 for message in image_messages:
                     try:
-                        # Retrieve timestamp for image messages only
+                        # Extract timestamp
                         try:
                             timestamp_element = message.find_element(By.XPATH, './/div[contains(@class, "copyable-text")]')
                             raw_timestamp_text = timestamp_element.get_attribute("data-pre-plain-text").rstrip("]").strip()
                         except NoSuchElementException:
-                            raw_timestamp_text = "" 
+                            raw_timestamp_text = ""
                         time_text = raw_timestamp_text.split(",")[0].strip()
                         time_text = time_text.lstrip("[").strip()
-                        time_text = "".join(time_text.split())  # Remove all whitespace characters (including invisible ones)
+                        time_text = "".join(time_text.split())  # Remove all whitespace characters
 
                         # Skip processing if time_text is empty
                         if not time_text:
                             continue
 
-                        # Parse time_text into a datetime object with today's date
+                        # Parse the time into a datetime object
                         try:
-                            parsed_time = datetime.strptime(time_text, "%I:%M%p").time()
-                            message_time = datetime.combine(datetime.today(), parsed_time)  # Attach today's date
+                            # Attempt to parse the time in both 12-hour and 24-hour formats
+                            try:
+                                parsed_time = datetime.strptime(time_text, "%I:%M%p").time()  # 12-hour format
+                            except ValueError:
+                                parsed_time = datetime.strptime(time_text, "%H:%M").time()  # 24-hour format
+                            
+                            # Combine the parsed time with today's date
+                            message_time = datetime.combine(datetime.today(), parsed_time)
                         except ValueError as ve:
                             print(f"ValueError: Could not parse timestamp. Cleaned: '{time_text}'. Exception: {ve}")
                             continue
+
 
                         # Stop scrolling if the message is outside the time range
                         if time_start_dt and message_time < time_start_dt:
@@ -257,10 +374,10 @@ class WhatsAppScraper:
                             print(f"Reached image message newer than the end time: {time_end_dt.strftime('%I:%M %p')}.")
                             return
 
-                    except (ValueError, AttributeError, NoSuchElementException):
-                        print(f"Error parsing timestamp for image message, skipping.")
+                    except (StaleElementReferenceException, ValueError, AttributeError, NoSuchElementException):
+                        print("Error processing image message, skipping.")
 
-                # Check if we've reached the top by comparing heights
+                # Check if we've reached the top of the chat by comparing scroll height
                 current_height = self.driver.execute_script("return arguments[0].scrollHeight;", message_container)
                 if previous_height == current_height:
                     print("Reached the top of the chat.")
@@ -269,6 +386,21 @@ class WhatsAppScraper:
 
         except Exception as e:
             print(f"Error during scrolling: {e}")
+
+    def parse_time_string(time_string):
+        """
+        Parse a time string in either 12-hour (e.g., "10:47 PM") or 24-hour (e.g., "22:02") format.
+        Returns a datetime.time object.
+        """
+        try:
+            if "AM" in time_string.upper() or "PM" in time_string.upper():
+                # Handle 12-hour format
+                return datetime.strptime(time_string, "%I:%M %p").time()
+            else:
+                # Handle 24-hour format
+                return datetime.strptime(time_string, "%H:%M").time()
+        except ValueError as e:
+            raise ValueError(f"Invalid time format: {time_string}. Error: {e}")
 
     def parse_date_text(self, date_text):
         """
@@ -317,7 +449,10 @@ class WhatsAppScraper:
                         timestamp_element = message.find_element(By.XPATH, './/div[contains(@class, "copyable-text")]').get_attribute("data-pre-plain-text").rstrip("]").strip()
                         timestamp_text = timestamp_element.split(",")[0].strip()  # Extract "5:54 PM"
                         timestamp_text = timestamp_text.lstrip("[").strip()
-                        message_time = datetime.strptime(timestamp_text, "%I:%M %p")  # Convert to datetime object
+                        try:
+                            message_time = datetime.strptime(timestamp_text, "%I:%M %p")  # 12-hour format
+                        except ValueError:
+                            message_time = datetime.strptime(timestamp_text, "%H:%M")  # 24-hour format
                     except NoSuchElementException:
                         timestamp_element = " "
                         message_time = None
@@ -336,11 +471,13 @@ class WhatsAppScraper:
                         description_element[0].get_attribute("alt")
                         if description_element else " "
                     )
+                    print(f"description {description}")
 
                     # Locate image elements and check for blob or base64
                     image_elements = message.find_elements(By.XPATH, './/img')
-                    blob_image = next((img for img in image_elements if img.get_attribute("src").startswith("blob:")), None)
-                    base64_image = next((img for img in image_elements if img.get_attribute("src").startswith("data:image")), None)
+                    blob_image = next((img for img in image_elements if img.get_attribute("src") and img.get_attribute("src").startswith("blob:")), None)
+                    base64_image = next((img for img in image_elements if img.get_attribute("src") and img.get_attribute("src").startswith("data:image")), None)
+
 
                     if blob_image:
                         # Handle blob URLs using JavaScript injection
@@ -385,7 +522,7 @@ class WhatsAppScraper:
 
                     processed_messages.append({
                         "file_path": temp_file_path,
-                        "caption": f"{timestamp_element} - {description}"
+                        "caption": f"Active Jarvis : {description}"
                     })
 
                 except Exception as e:
@@ -436,7 +573,10 @@ class WhatsAppScraper:
                     timestamp_element = message.find_element(By.XPATH, './/div[contains(@class, "copyable-text")]').get_attribute("data-pre-plain-text").rstrip("]").strip()
                     timestamp_text = timestamp_element.split(",")[0].strip()  # Extract "5:54 PM"
                     timestamp_text = timestamp_text.lstrip("[").strip()
-                    message_time = datetime.strptime(timestamp_text, "%I:%M %p")  # Convert to datetime object
+                    try:
+                        message_time = datetime.strptime(timestamp_text, "%I:%M %p")  # 12-hour format
+                    except ValueError:
+                        message_time = datetime.strptime(timestamp_text, "%H:%M")  # 24-hour format
                     timestamp = timestamp_element if timestamp_element else " "
 
                     if message_time:
@@ -489,12 +629,54 @@ class WhatsAppScraper:
         except Exception as e:
             print(f"Error during cleanup: {e}")
 
+    def take_screenshot(self, file_name="screenshot.png"):
+        """
+        Takes a screenshot of the current browser state.
+        Args:
+        - file_name: The name of the file to save the screenshot.
+        """
+        try:
+            screenshot_path = os.path.join(os.getcwd(), file_name)
+            self.driver.save_screenshot(screenshot_path)
+            print(f"Screenshot saved at {screenshot_path}")
+        except Exception as e:
+            print(f"Failed to take screenshot: {e}")
+
 # Usage example
+# if __name__ == "__main__":
+#     scraper = WhatsAppScraper(chat_name="Paul", date_limit="11/01/2024", scrape_all=False, new_session=True)
+#     scraper.login()
+#     # scraper.open_chat()
+#     # scraper.scroll_to_target_date()
+#     # scraper.extract_messages_with_images()
+#     # scraper.extract_messages_with_videos()
+#     scraper.close()
+
 if __name__ == "__main__":
-    scraper = WhatsAppScraper(chat_name="Paul", date_limit="11/01/2024", scrape_all=False, new_session=True)
-    scraper.login()
-    # scraper.open_chat()
-    # scraper.scroll_to_target_date()
-    # scraper.extract_messages_with_images()
-    # scraper.extract_messages_with_videos()
-    scraper.close()
+    # Define test inputs
+    chat_names = ["Paul", "Duke Residency & Apartments"]  # Replace with real chat names
+    time_start = "08:00 AM"
+    time_end = "11:00 PM"
+    
+    # Initialize the scraper
+    scraper = WhatsAppScraper(
+        chat_names=chat_names,
+        date_limit="11/01/2024",
+        scrape_all=False,
+        new_session=True,
+        headless=True  # Set to False to see the browser
+    )
+    
+    try:
+        # Login to WhatsApp Web
+        scraper.login()
+        
+        # Run the scraping logic
+        scraper.scrape_chats(time_start=time_start, time_end=time_end)
+    
+    except Exception as e:
+        print(f"An error occurred during testing: {e}")
+    
+    finally:
+        # Ensure cleanup
+        scraper.close()

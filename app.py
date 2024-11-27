@@ -9,6 +9,7 @@ import subprocess
 import os
 from save_chrome_user_data import WhatsAppLogin
 import atexit
+import time
 
 app = Flask(__name__, static_folder='build', static_url_path='/')
 app.secret_key = 'super_secret_key'
@@ -49,8 +50,13 @@ def start_scraper(chat_names, channel_username):
             if scraper_process and scraper_process.poll() is None:
                 print("Stopping the existing scraper process...")
                 scraper_process.terminate()  # Send SIGTERM to stop the process
-                scraper_process.wait()  # Wait for the process to terminate
+                try:
+                    scraper_process.wait(timeout=10)  # Wait for graceful termination
+                except subprocess.TimeoutExpired:
+                    print("Existing scraper process did not terminate gracefully. Forcing termination...")
+                    scraper_process.kill()  # Force kill if needed
                 print("Existing scraper process stopped.")
+                time.sleep(10)
 
             # Prepare arguments for the new scraper process
             print("Starting a new scraper process...")
@@ -76,7 +82,7 @@ def cleanup():
     if scraper_process and scraper_process.poll() is None:
         print("Stopping scraper process during cleanup...")
         scraper_process.terminate()
-        scraper_process.wait()
+        scraper_process.wait(imeout=40)
         print("Scraper process stopped.")
 
 # Register cleanup function
@@ -156,9 +162,13 @@ def scrape():
     scrape_all = data.get('scrapeAll', False)
     new_session = data.get('newWhatsAppSession', False)
 
-    # Add '@' if missing
-    if channel_username and not channel_username.startswith('@'):
-        channel_username = f"@{channel_username}"
+    # Adjust channel_username for private and public channels
+    if channel_username:
+        if channel_username.isdigit():  # If it's only numbers, prepend '-100' for private channel IDs
+            channel_username = f"-100{channel_username}"
+        elif not channel_username.startswith('@'):  # Otherwise, ensure it starts with '@' for public usernames
+            channel_username = f"@{channel_username}"
+
 
     try:
         # Commenting out the TelegramPoster initialization
@@ -228,7 +238,7 @@ def link_whatsapp():
         threading.Thread(target=whatsapp_login.open_whatsapp_web, daemon=True).start()
 
         # Prepare the VNC link for the user
-        vnc_link = "http://34.56.26.96:8080/vnc.html"  # Replace <localhost> with your actual server IP or domain
+        vnc_link = "http://34.132.58.174:8080/vnc.html"  # Replace <localhost> with your actual server IP or domain
         print(f"[DEBUG] Generated VNC link: {vnc_link}")
 
         # Return the response with the VNC link
