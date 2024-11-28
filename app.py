@@ -64,9 +64,9 @@ def start_scraper(chat_names, channel_username):
             args = [
                 "python3", "run_scraper.py",
                 "--chatNames", chat_names_str,
-                "--channelUsername", channel_username
+                "--channelUsername", f'"{channel_username}"'  # Enclose in quotes
             ]
-
+           
             # Start the new process
             scraper_process = subprocess.Popen(
                 args, stdout=None, stderr=None, stdin=None, close_fds=True
@@ -164,7 +164,7 @@ def scrape():
 
     # Adjust channel_username for private and public channels
     if channel_username:
-        if channel_username.isdigit():  # If it's only numbers, prepend '-100' for private channel IDs
+        if channel_username.replace("/", "").isdigit():  # If it's only numbers, prepend '-100' for private channel IDs
             channel_username = f"-100{channel_username}"
         elif not channel_username.startswith('@'):  # Otherwise, ensure it starts with '@' for public usernames
             channel_username = f"@{channel_username}"

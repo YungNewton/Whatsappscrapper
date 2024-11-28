@@ -1,3 +1,5 @@
-2024/11/28-02:24:22.370 7103 Reusing MANIFEST /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmppk69i5z7/Default/Site Characteristics Database/MANIFEST-000001
-2024/11/28-02:24:22.371 7103 Recovering log #3
-2024/11/28-02:24:22.372 7103 Reusing old log /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmppk69i5z7/Default/Site Characteristics Database/000003.log 
+2024/11/28-06:05:08.831 14d03 Log #3: 17 ops saved to Table #4 OK
+2024/11/28-06:05:08.832 14d03 Archiving /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmpkmyvyj2_/Default/Site Characteristics Database/000003.log: OK
+2024/11/28-06:05:08.853 14d03 Table #4: 17 entries OK
+2024/11/28-06:05:08.855 14d03 Archiving /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmpkmyvyj2_/Default/Site Characteristics Database/MANIFEST-000001: OK
+2024/11/28-06:05:08.933 14d03 **** Repaired leveldb /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmpkmyvyj2_/Default/Site Characteristics Database; recovered 1 files; 352 bytes. Some data may have been lost. ****

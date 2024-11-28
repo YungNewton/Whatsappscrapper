@@ -440,6 +440,8 @@ class WhatsAppScraper:
         time_start_dt = datetime.strptime(time_start, "%I:%M %p") if time_start else None
         time_end_dt = datetime.strptime(time_end, "%I:%M %p") if time_end else None
 
+        processed_blob_urls = set()
+
         range_crosses_midnight = time_start_dt and time_end_dt and time_start_dt > time_end_dt
 
         # Create a temporary directory to store images
@@ -451,37 +453,32 @@ class WhatsAppScraper:
                 '/ancestor::div[contains(@class, "message-in") or contains(@class, "message-out")]'
             )
 
-            # Collect processed data for all messages
             processed_messages = []
 
             for idx, message in enumerate(reversed(messages_with_images)):
                 try:
                     # Retrieve the timestamp
                     try:
-                        timestamp_element = message.find_element(By.XPATH, './/div[contains(@class, "copyable-text")]').get_attribute("data-pre-plain-text").rstrip("]").strip()
-                        timestamp_text = timestamp_element.split(",")[0].strip()  # Extract "5:54 PM"
-                        timestamp_text = timestamp_text.lstrip("[").strip()
+                        timestamp_element = message.find_element(By.XPATH, './/div[contains(@class, "copyable-text")]')
+                        raw_timestamp = timestamp_element.get_attribute("data-pre-plain-text")
+                        timestamp_text = raw_timestamp.rstrip("]").strip().split(",")[0].strip() if raw_timestamp else ""
+                        timestamp_text = timestamp_text.lstrip("[")
                         try:
                             message_time = datetime.strptime(timestamp_text, "%I:%M %p")  # 12-hour format
                         except ValueError:
                             message_time = datetime.strptime(timestamp_text, "%H:%M")  # 24-hour format
-                    except NoSuchElementException:
-                        timestamp_element = " "
+                    except (NoSuchElementException, ValueError) as e:
+                        print(f"Message {idx + 1}: Timestamp not found or invalid.")
                         message_time = None
 
+                    # Adjust for overnight ranges
+                    time_end_dt_adjusted = time_end_dt + timedelta(days=1) if range_crosses_midnight else time_end_dt
                     if message_time:
-                        # Adjust message time for overnight ranges
-                        if range_crosses_midnight:
-                            if message_time < time_start_dt:
-                                message_time += timedelta(days=1)  # Treat message as occurring the next day
-                            time_end_dt_adjusted = time_end_dt + timedelta(days=1)  # Adjust time_end to the next day
-                        else:
-                            time_end_dt_adjusted = time_end_dt  # No adjustment needed if range does not cross midnight
-
-                        # Compare message time with range
+                        if range_crosses_midnight and message_time < time_start_dt:
+                            message_time += timedelta(days=1)
                         if time_start_dt and message_time < time_start_dt:
                             print(f"Message {idx + 1} stopped: Time {message_time.strftime('%I:%M %p')} is before the start range.")
-                            break  # Stop processing entirely when the message is too old
+                            break
                         if time_end_dt_adjusted and message_time > time_end_dt_adjusted:
                             print(f"Message {idx + 1} stopped: Time {message_time.strftime('%I:%M %p')} exceeds the end range.")
                             break
@@ -493,20 +490,26 @@ class WhatsAppScraper:
                         if description_element else " "
                     )
 
-                    # Locate image elements and check for blob or base64
+                    # Retrieve image elements
                     image_elements = message.find_elements(By.XPATH, './/img')
-                    blob_image = next((img for img in image_elements if img.get_attribute("src").startswith("blob:")), None)
-                    base64_image = next((img for img in image_elements if img.get_attribute("src").startswith("data:image")), None)
+                    blob_image = next((img for img in image_elements if img.get_attribute("src") and img.get_attribute("src").startswith("blob:")), None)
+                    base64_image = next((img for img in image_elements if img.get_attribute("src") and img.get_attribute("src").startswith("data:image")), None)
 
-                    temp_file_path = None  # Initialize as None to determine fallback scenario
+                    temp_file_path = None
 
+                    # Process blob image
                     if blob_image:
-                        # Handle blob URLs using JavaScript injection
                         blob_url = blob_image.get_attribute("src")
                         print(f"Blob URL: {blob_url}")
 
+                        # Skip duplicate blob URLs
+                        if blob_url in processed_blob_urls:
+                            print(f"Message {idx + 1}: Duplicate Blob URL detected. Skipping...")
+                            continue
+                        processed_blob_urls.add(blob_url)
+
                         if not blob_url or not blob_url.startswith("blob:"):
-                            print(f"Invalid blob URL for image {idx + 1}, skipping.")
+                            print(f"Message {idx + 1}: Invalid blob URL, skipping.")
                             continue
 
                         script = """
@@ -522,44 +525,43 @@ class WhatsAppScraper:
                         """
                         try:
                             base64_data = self.driver.execute_script(script, blob_url)
-                            # Decode and save the blob data
-                            if base64_data.startswith("data:image"):
+                            if base64_data and base64_data.startswith("data:image"):
                                 base64_content = base64_data.split(",")[1]
                                 temp_file_path = os.path.join(temp_dir, f"extracted_image_{idx + 1}.png")
                                 with open(temp_file_path, "wb") as file:
                                     file.write(base64.b64decode(base64_content))
-                                print(f"Blob image {idx + 1} saved to {temp_file_path}.")
-                                print("sleeping")
-
+                                print(f"Message {idx + 1}: Blob image saved to {temp_file_path}.")
                             else:
-                                print(f"Unable to process blob image {idx + 1}, skipping.")
-                                continue
+                                print(f"Message {idx + 1}: Unable to process blob image, skipping.")
                         except Exception as e:
-                            print(f"Error fetching blob URL for image {idx + 1}: {e}")
+                            print(f"Message {idx + 1}: Error fetching blob URL. Error: {e}")
 
+                    # Process base64 image
                     elif base64_image:
-                        # Handle Base64-encoded image directly
                         image_src = base64_image.get_attribute("src")
-                        base64_data = image_src.split(",")[1]
-                        temp_file_path = os.path.join(temp_dir, f"extracted_image_{idx + 1}.png")
-                        with open(temp_file_path, "wb") as file:
-                            file.write(base64.b64decode(base64_data))
-                        print(f"Base64 image {idx + 1} saved to {temp_file_path}.")
-
-                    if not temp_file_path:
-                        # Fallback: Take a screenshot of the image container
-                        print(f"Falling back to screenshot for image {idx + 1}.")
+                        print(f"Message {idx + 1}: Base64 image src - {image_src}")
                         try:
-                            # Locate the image container specifically
-                            print(f"Falling back to screenshot for image {idx + 1}.")
+                            base64_content = image_src.split(",")[1]
+                            temp_file_path = os.path.join(temp_dir, f"extracted_image_{idx + 1}.png")
+                            with open(temp_file_path, "wb") as file:
+                                file.write(base64.b64decode(base64_content))
+                            print(f"Message {idx + 1}: Base64 image saved to {temp_file_path}.")
+                        except Exception as e:
+                            print(f"Message {idx + 1}: Error processing base64 image. Error: {e}")
+
+                    # Fallback to screenshot
+                    if not temp_file_path:
+                        print(f"Message {idx + 1}: Taking fallback screenshot.")
+                        try:
                             image_element = message.find_element(By.XPATH, './/img')
                             screenshot_path = os.path.join(temp_dir, f"screenshot_image_{idx + 1}.png")
                             image_element.screenshot(screenshot_path)
-                            print(f"Screenshot saved for image {idx + 1} to {screenshot_path}.")
+                            print(f"Message {idx + 1}: Screenshot saved to {screenshot_path}.")
                             temp_file_path = screenshot_path
                         except Exception as e:
-                            print(f"Error taking screenshot for image {idx + 1}: {e}")
+                            print(f"Message {idx + 1}: Error taking screenshot. Error: {e}")
 
+                    # Append processed message
                     processed_messages.append({
                         "file_path": temp_file_path,
                         "caption": f"Active Jarvis : {description}"
