@@ -8,7 +8,7 @@ from TelegramPoster import TelegramPoster  # Import your TelegramPoster class
 # Global Configuration
 CHAT_NAMES = []  # Will be dynamically updated
 CHANNEL_USERNAME = ""  # Will be dynamically updated
-BOT_TOKEN = "7766870224:AAGwLCBlye9lPfxZeSWnJ9_Anji7LBmW_qs"  # Replace with your bot token
+BOT_TOKEN = "8027226040:AAHwIVqA-bB-F7g01djdw93Ti4SuSk-mM4o"  # Replace with your bot token
 
 # Event and thread for managing scraper
 stop_event = threading.Event()
@@ -36,7 +36,7 @@ def scrape_last_10_minutes():
     Runs the WhatsApp scraper to scrape messages from the last 10 minutes.
     """
     current_time = datetime.now()
-    start_time = current_time - timedelta(minutes=460)
+    start_time = current_time - timedelta(minutes=15)
     time_start = start_time.strftime("%I:%M %p")
     time_end = current_time.strftime("%I:%M %p")
 
@@ -65,7 +65,7 @@ def run_scraper_periodically():
         print(f"Starting scraper at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         scrape_last_10_minutes()
         print("Waiting to begin the next run...")
-        if not stop_event.wait(1500):  # Wait 10 minutes or exit if stopped
+        if not stop_event.wait(900):  # Wait 10 minutes or exit if stopped
             continue
 
 

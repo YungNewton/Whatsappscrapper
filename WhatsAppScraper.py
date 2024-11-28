@@ -70,9 +70,11 @@ class WhatsAppScraper:
         chrome_options.add_argument("--disable-dev-shm-usage")
         chrome_options.add_argument("--start-maximized")
         chrome_options.add_argument("--window-size=1280,720")
+        chrome_options.add_argument("--disable-web-security")  # Disable CORS restrictions
+        chrome_options.add_argument("--allow-running-insecure-content")
 
         if self.headless:
-            chrome_options.add_argument("--headless")
+            # chrome_options.add_argument("--headless")
             chrome_options.add_argument("--disable-gpu")
 
         driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
@@ -435,6 +437,47 @@ class WhatsAppScraper:
                 return datetime.strptime(date_text, "%m/%d/%Y")
             except ValueError:
                 return None
+            
+    def fetch_blob_with_retries(self, driver, blob_url, retries=3, delay=5):
+        """
+        Fetches a blob URL with retries if it fails.
+        
+        Args:
+            driver: WebDriver instance.
+            blob_url: The blob URL to fetch.
+            retries: Number of retry attempts.
+            delay: Delay in seconds between retries.
+
+        Returns:
+            The base64 data of the blob or None if all retries fail.
+        """
+        script = """
+            let blobUrl = arguments[0];
+            return fetch(blobUrl)
+                .then(response => response.blob())
+                .then(blob => new Promise((resolve, reject) => {
+                    let reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(blob);
+                }));
+        """
+        for attempt in range(1, retries + 1):
+            try:
+                base64_data = driver.execute_script(script, blob_url)
+                if base64_data and base64_data.startswith("data:image"):
+                    print(f"Successfully fetched blob URL on attempt {attempt}")
+                    return base64_data
+            except Exception as e:
+                print(f"Attempt {attempt} failed to fetch blob URL: {e}")
+                
+                # Only sleep if there are retries remaining
+                if attempt < retries:
+                    print(f"Retrying in {delay} seconds...")
+                    time.sleep(delay)
+
+        print("All retry attempts failed.")
+        return None
 
     def extract_messages_with_images(self, time_start=None, time_end=None):
         time_start_dt = datetime.strptime(time_start, "%I:%M %p") if time_start else None
@@ -502,40 +545,29 @@ class WhatsAppScraper:
                         blob_url = blob_image.get_attribute("src")
                         print(f"Blob URL: {blob_url}")
 
-                        # Skip duplicate blob URLs
-                        if blob_url in processed_blob_urls:
-                            print(f"Message {idx + 1}: Duplicate Blob URL detected. Skipping...")
-                            continue
-                        processed_blob_urls.add(blob_url)
+                        # # Skip duplicate blob URLs
+                        # if blob_url in processed_blob_urls:
+                        #     print(f"Message {idx + 1}: Duplicate Blob URL detected. Skipping...")
+                        #     continue
+                        # processed_blob_urls.add(blob_url)
 
                         if not blob_url or not blob_url.startswith("blob:"):
                             print(f"Message {idx + 1}: Invalid blob URL, skipping.")
                             continue
 
-                        script = """
-                            let blobUrl = arguments[0];
-                            return fetch(blobUrl)
-                                .then(response => response.blob())
-                                .then(blob => new Promise((resolve, reject) => {
-                                    let reader = new FileReader();
-                                    reader.onloadend = () => resolve(reader.result);
-                                    reader.onerror = reject;
-                                    reader.readAsDataURL(blob);
-                                }));
-                        """
                         try:
-                            base64_data = self.driver.execute_script(script, blob_url)
-                            if base64_data and base64_data.startswith("data:image"):
+                            base64_data = self.fetch_blob_with_retries(self.driver, blob_url, retries=5, delay=3)  # Adjust retries and delay as needed
+                            if base64_data:
                                 base64_content = base64_data.split(",")[1]
                                 temp_file_path = os.path.join(temp_dir, f"extracted_image_{idx + 1}.png")
                                 with open(temp_file_path, "wb") as file:
                                     file.write(base64.b64decode(base64_content))
                                 print(f"Message {idx + 1}: Blob image saved to {temp_file_path}.")
                             else:
-                                print(f"Message {idx + 1}: Unable to process blob image, skipping.")
+                                print(f"Message {idx + 1}: Failed to fetch blob after retries.")
                         except Exception as e:
                             print(f"Message {idx + 1}: Error fetching blob URL. Error: {e}")
-
+                            
                     # Process base64 image
                     elif base64_image:
                         image_src = base64_image.get_attribute("src")
@@ -564,7 +596,7 @@ class WhatsAppScraper:
                     # Append processed message
                     processed_messages.append({
                         "file_path": temp_file_path,
-                        "caption": f"Active Jarvis : {description}"
+                        "caption": f"{description}"
                     })
 
                 except Exception as e:

@@ -1,7 +1,13 @@
-2024/11/28-06:05:19.281 9107 Reusing MANIFEST /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmpkmyvyj2_/Default/IndexedDB/https_web.whatsapp.com_0.indexeddb.leveldb/MANIFEST-000001
-2024/11/28-06:05:19.282 9107 Recovering log #126
-2024/11/28-06:05:19.295 9107 Reusing old log /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmpkmyvyj2_/Default/IndexedDB/https_web.whatsapp.com_0.indexeddb.leveldb/000126.log 
-2024/11/28-06:05:19.883 ae03 Level-0 table #132: started
-2024/11/28-06:05:19.940 ae03 Level-0 table #132: 170757 bytes OK
-2024/11/28-06:05:20.018 ae03 Delete type=0 #126
-2024/11/28-06:05:20.047 9107 Manual compaction at level-0 from '\x00'\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00(\x00\x00\x00' @ 0 : 0; will stop at (end)
+2024/11/28-16:47:57.060 14b03 Reusing MANIFEST /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmptnc0j46h/Default/IndexedDB/https_web.whatsapp.com_0.indexeddb.leveldb/MANIFEST-000001
+2024/11/28-16:47:57.068 14b03 Recovering log #134
+2024/11/28-16:47:57.162 14b03 Reusing old log /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmptnc0j46h/Default/IndexedDB/https_web.whatsapp.com_0.indexeddb.leveldb/000134.log 
+2024/11/28-16:47:59.027 15203 Level-0 table #141: started
+2024/11/28-16:47:59.093 15203 Level-0 table #141: 771339 bytes OK
+2024/11/28-16:47:59.135 15203 Delete type=0 #134
+2024/11/28-16:47:59.145 15103 Compacting 1@1 + 2@2 files
+2024/11/28-16:47:59.469 15103 Generated table #142@1: 42375 keys, 2198461 bytes
+2024/11/28-16:47:59.662 15103 Generated table #143@1: 36223 keys, 1816623 bytes
+2024/11/28-16:47:59.662 15103 Compacted 1@1 + 2@2 files => 4015084 bytes
+2024/11/28-16:47:59.802 15103 compacted to: files[ 0 0 2 0 0 0 0 ]
+2024/11/28-16:47:59.805 15103 Delete type=2 #141
+2024/11/28-16:47:59.812 9407 Manual compaction at level-0 from '\x00)\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00*\x00\x00\x00' @ 0 : 0; will stop at (end)
