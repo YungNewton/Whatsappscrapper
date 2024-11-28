@@ -69,11 +69,11 @@ class WhatsAppScraper:
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
         chrome_options.add_argument("--start-maximized")
+        chrome_options.add_argument("--window-size=1280,720")
 
         if self.headless:
             chrome_options.add_argument("--headless")
             chrome_options.add_argument("--disable-gpu")
-            chrome_options.add_argument("--window-size=1280,720")
 
         driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
         return driver
@@ -284,6 +284,12 @@ class WhatsAppScraper:
             time_start_dt = datetime.strptime(time_start, "%I:%M %p") if time_start else None
             time_end_dt = datetime.strptime(time_end, "%I:%M %p") if time_end else None
 
+            # Check if the range crosses midnight
+            range_crosses_midnight = time_start_dt and time_end_dt and time_end_dt < time_start_dt
+
+            # Adjust time_end_dt for overnight ranges
+            time_end_dt_adjusted = time_end_dt + timedelta(days=1) if range_crosses_midnight else time_end_dt
+
             # Locate the initial message container
             message_container_locator = (By.XPATH, '//div[contains(@class, "_amjv")]')
             message_container = self.refresh_element(self.driver, message_container_locator)
@@ -295,7 +301,7 @@ class WhatsAppScraper:
 
                 # Check for and click the "load older messages" button, if present
                 try:
-                    load_more_button = self.driver.find_element(By.XPATH, '//button[contains(@class, "x14m1o6m x126m2zf x1b9z3ur x9f619 x1rg5ohu x1okw0bk x193iq5w x123j3cw xn6708d x10b6aqq x1ye3gou x13a8xbf xdod15v x2b8uid x1lq5wgf xgqcy7u x30kzoy x9jhf4c")]')
+                    load_more_button = self.driver.find_element(By.XPATH, '//button[contains(@class, "x14m1o6m x126m2zf")]')
                     load_more_button.click()
                     print("Clicked to load older messages.")
                     time.sleep(2)
@@ -361,17 +367,21 @@ class WhatsAppScraper:
                             
                             # Combine the parsed time with today's date
                             message_time = datetime.combine(datetime.today(), parsed_time)
+
+                            # Adjust message time for overnight ranges
+                            if range_crosses_midnight and message_time < time_start_dt:
+                                message_time += timedelta(days=1)
+
                         except ValueError as ve:
                             print(f"ValueError: Could not parse timestamp. Cleaned: '{time_text}'. Exception: {ve}")
                             continue
-
 
                         # Stop scrolling if the message is outside the time range
                         if time_start_dt and message_time < time_start_dt:
                             print(f"Reached image message older than the start time: {time_start_dt.strftime('%I:%M %p')}.")
                             return
-                        if time_end_dt and message_time > time_end_dt:
-                            print(f"Reached image message newer than the end time: {time_end_dt.strftime('%I:%M %p')}.")
+                        if time_end_dt_adjusted and message_time > time_end_dt_adjusted:
+                            print(f"Reached image message newer than the end time: {time_end_dt_adjusted.strftime('%I:%M %p')}.")
                             return
 
                     except (StaleElementReferenceException, ValueError, AttributeError, NoSuchElementException):
@@ -386,6 +396,7 @@ class WhatsAppScraper:
 
         except Exception as e:
             print(f"Error during scrolling: {e}")
+
 
     def parse_time_string(time_string):
         """
@@ -429,6 +440,8 @@ class WhatsAppScraper:
         time_start_dt = datetime.strptime(time_start, "%I:%M %p") if time_start else None
         time_end_dt = datetime.strptime(time_end, "%I:%M %p") if time_end else None
 
+        range_crosses_midnight = time_start_dt and time_end_dt and time_start_dt > time_end_dt
+
         # Create a temporary directory to store images
         with tempfile.TemporaryDirectory() as temp_dir:
             messages_with_images = self.driver.find_elements(
@@ -457,10 +470,19 @@ class WhatsAppScraper:
                         message_time = None
 
                     if message_time:
+                        # Adjust message time for overnight ranges
+                        if range_crosses_midnight:
+                            if message_time < time_start_dt:
+                                message_time += timedelta(days=1)  # Treat message as occurring the next day
+                            time_end_dt_adjusted = time_end_dt + timedelta(days=1)  # Adjust time_end to the next day
+                        else:
+                            time_end_dt_adjusted = time_end_dt  # No adjustment needed if range does not cross midnight
+
+                        # Compare message time with range
                         if time_start_dt and message_time < time_start_dt:
                             print(f"Message {idx + 1} stopped: Time {message_time.strftime('%I:%M %p')} is before the start range.")
                             break  # Stop processing entirely when the message is too old
-                        if time_end_dt and message_time > time_end_dt:
+                        if time_end_dt_adjusted and message_time > time_end_dt_adjusted:
                             print(f"Message {idx + 1} stopped: Time {message_time.strftime('%I:%M %p')} exceeds the end range.")
                             break
 
@@ -470,7 +492,6 @@ class WhatsAppScraper:
                         description_element[0].get_attribute("alt")
                         if description_element else " "
                     )
-                    print(f"description {description}")
 
                     # Locate image elements and check for blob or base64
                     image_elements = message.find_elements(By.XPATH, './/img')
@@ -483,6 +504,10 @@ class WhatsAppScraper:
                         # Handle blob URLs using JavaScript injection
                         blob_url = blob_image.get_attribute("src")
                         print(f"Blob URL: {blob_url}")
+
+                        if not blob_url or not blob_url.startswith("blob:"):
+                            print(f"Invalid blob URL for image {idx + 1}, skipping.")
+                            continue
 
                         script = """
                             let blobUrl = arguments[0];
@@ -504,6 +529,8 @@ class WhatsAppScraper:
                                 with open(temp_file_path, "wb") as file:
                                     file.write(base64.b64decode(base64_content))
                                 print(f"Blob image {idx + 1} saved to {temp_file_path}.")
+                                print("sleeping")
+
                             else:
                                 print(f"Unable to process blob image {idx + 1}, skipping.")
                                 continue
@@ -532,7 +559,6 @@ class WhatsAppScraper:
                             temp_file_path = screenshot_path
                         except Exception as e:
                             print(f"Error taking screenshot for image {idx + 1}: {e}")
-
 
                     processed_messages.append({
                         "file_path": temp_file_path,
