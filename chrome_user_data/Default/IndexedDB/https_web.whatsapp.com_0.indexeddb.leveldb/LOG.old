@@ -1,22 +1,4 @@
-2024/11/28-16:45:23.380 9007 Reusing MANIFEST /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmpudz8bu4n/Default/IndexedDB/https_web.whatsapp.com_0.indexeddb.leveldb/MANIFEST-000001
-2024/11/28-16:45:23.381 9007 Recovering log #131
-2024/11/28-16:45:23.382 9007 Reusing old log /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmpudz8bu4n/Default/IndexedDB/https_web.whatsapp.com_0.indexeddb.leveldb/000131.log 
-2024/11/28-16:45:24.590 15103 Level-0 table #135: started
-2024/11/28-16:45:24.613 15103 Level-0 table #135: 8570 bytes OK
-2024/11/28-16:45:24.655 15103 Delete type=0 #131
-2024/11/28-16:45:24.662 9007 Manual compaction at level-0 from '\x00(\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00)\x00\x00\x00' @ 0 : 0; will stop at '\x00(\x00\x00\x05' @ 353013 : 1
-2024/11/28-16:45:24.662 9007 Compacting 1@0 + 1@1 files
-2024/11/28-16:45:24.679 9007 Generated table #136@0: 3558 keys, 86847 bytes
-2024/11/28-16:45:24.679 9007 Compacted 1@0 + 1@1 files => 86847 bytes
-2024/11/28-16:45:24.716 9007 compacted to: files[ 0 1 2 0 0 0 0 ]
-2024/11/28-16:45:24.718 9007 Delete type=2 #135
-2024/11/28-16:45:24.719 15103 Manual compaction at level-0 from '\x00(\x00\x00\x05' @ 353013 : 1 .. '\x00)\x00\x00\x00' @ 0 : 0; will stop at (end)
-2024/11/28-16:45:24.784 6b03 Compacting 1@1 + 2@2 files
-2024/11/28-16:45:24.943 6b03 Generated table #137@1: 40300 keys, 2196136 bytes
-2024/11/28-16:45:25.152 6b03 Generated table #138@1: 35896 keys, 1597113 bytes
-2024/11/28-16:45:25.152 6b03 Compacted 1@1 + 2@2 files => 3793249 bytes
-2024/11/28-16:45:25.193 6b03 compacted to: files[ 0 0 2 0 0 0 0 ]
-2024/11/28-16:45:25.195 6b03 Delete type=2 #129
-2024/11/28-16:45:25.195 6b03 Delete type=2 #128
-2024/11/28-16:45:25.195 6b03 Delete type=2 #136
-2024/11/28-16:45:25.195 6b03 Delete type=2 #132
+2024/11/28-21:38:25.676 6f03 Reusing MANIFEST /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmpx9stpgla/Default/IndexedDB/https_web.whatsapp.com_0.indexeddb.leveldb/MANIFEST-000001
+2024/11/28-21:38:25.677 6f03 Recovering log #158
+2024/11/28-21:38:25.686 6f03 Reusing old log /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmpx9stpgla/Default/IndexedDB/https_web.whatsapp.com_0.indexeddb.leveldb/000158.log 
+2024/11/28-21:38:27.134 14d03 Manual compaction at level-0 from '\x00-\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00.\x00\x00\x00' @ 0 : 0; will stop at (end)

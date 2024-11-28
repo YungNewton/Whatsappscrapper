@@ -36,7 +36,7 @@ def scrape_last_10_minutes():
     Runs the WhatsApp scraper to scrape messages from the last 10 minutes.
     """
     current_time = datetime.now()
-    start_time = current_time - timedelta(minutes=15)
+    start_time = current_time - timedelta(minutes=60)
     time_start = start_time.strftime("%I:%M %p")
     time_end = current_time.strftime("%I:%M %p")
 
