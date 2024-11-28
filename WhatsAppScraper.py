@@ -426,14 +426,13 @@ class WhatsAppScraper:
                 return None
 
     def extract_messages_with_images(self, time_start=None, time_end=None):
-
         time_start_dt = datetime.strptime(time_start, "%I:%M %p") if time_start else None
         time_end_dt = datetime.strptime(time_end, "%I:%M %p") if time_end else None
 
         # Create a temporary directory to store images
         with tempfile.TemporaryDirectory() as temp_dir:
             messages_with_images = self.driver.find_elements(
-                By.XPATH, 
+                By.XPATH,
                 '//div[contains(@class, "message-in") or contains(@class, "message-out")]'
                 '//div[contains(@role, "button") and contains(@aria-label, "Open picture")]'
                 '/ancestor::div[contains(@class, "message-in") or contains(@class, "message-out")]'
@@ -475,13 +474,16 @@ class WhatsAppScraper:
 
                     # Locate image elements and check for blob or base64
                     image_elements = message.find_elements(By.XPATH, './/img')
-                    blob_image = next((img for img in image_elements if img.get_attribute("src") and img.get_attribute("src").startswith("blob:")), None)
-                    base64_image = next((img for img in image_elements if img.get_attribute("src") and img.get_attribute("src").startswith("data:image")), None)
+                    blob_image = next((img for img in image_elements if img.get_attribute("src").startswith("blob:")), None)
+                    base64_image = next((img for img in image_elements if img.get_attribute("src").startswith("data:image")), None)
 
+                    temp_file_path = None  # Initialize as None to determine fallback scenario
 
                     if blob_image:
                         # Handle blob URLs using JavaScript injection
                         blob_url = blob_image.get_attribute("src")
+                        print(f"Blob URL: {blob_url}")
+
                         script = """
                             let blobUrl = arguments[0];
                             return fetch(blobUrl)
@@ -493,18 +495,20 @@ class WhatsAppScraper:
                                     reader.readAsDataURL(blob);
                                 }));
                         """
-                        base64_data = self.driver.execute_script(script, blob_url)
-
-                        # Decode and save the blob data
-                        if base64_data.startswith("data:image"):
-                            base64_content = base64_data.split(",")[1]
-                            temp_file_path = os.path.join(temp_dir, f"extracted_image_{idx + 1}.png")
-                            with open(temp_file_path, "wb") as file:
-                                file.write(base64.b64decode(base64_content))
-                            print(f"Blob image {idx + 1} saved to {temp_file_path}.")
-                        else:
-                            print(f"Unable to process blob image {idx + 1}, skipping.")
-                            continue
+                        try:
+                            base64_data = self.driver.execute_script(script, blob_url)
+                            # Decode and save the blob data
+                            if base64_data.startswith("data:image"):
+                                base64_content = base64_data.split(",")[1]
+                                temp_file_path = os.path.join(temp_dir, f"extracted_image_{idx + 1}.png")
+                                with open(temp_file_path, "wb") as file:
+                                    file.write(base64.b64decode(base64_content))
+                                print(f"Blob image {idx + 1} saved to {temp_file_path}.")
+                            else:
+                                print(f"Unable to process blob image {idx + 1}, skipping.")
+                                continue
+                        except Exception as e:
+                            print(f"Error fetching blob URL for image {idx + 1}: {e}")
 
                     elif base64_image:
                         # Handle Base64-encoded image directly
@@ -515,9 +519,19 @@ class WhatsAppScraper:
                             file.write(base64.b64decode(base64_data))
                         print(f"Base64 image {idx + 1} saved to {temp_file_path}.")
 
-                    else:
-                        print(f"No valid image found for message {idx + 1}, skipping.")
-                        continue
+                    if not temp_file_path:
+                        # Fallback: Take a screenshot of the image container
+                        print(f"Falling back to screenshot for image {idx + 1}.")
+                        try:
+                            # Locate the image container specifically
+                            print(f"Falling back to screenshot for image {idx + 1}.")
+                            image_element = message.find_element(By.XPATH, './/img')
+                            screenshot_path = os.path.join(temp_dir, f"screenshot_image_{idx + 1}.png")
+                            image_element.screenshot(screenshot_path)
+                            print(f"Screenshot saved for image {idx + 1} to {screenshot_path}.")
+                            temp_file_path = screenshot_path
+                        except Exception as e:
+                            print(f"Error taking screenshot for image {idx + 1}: {e}")
 
 
                     processed_messages.append({
