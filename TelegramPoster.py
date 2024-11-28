@@ -25,12 +25,14 @@ class TelegramPoster:
         """
         if '/' in self.destination:
             chat_id, thread_id = self.destination.split('/', 1)
+            chat_id = chat_id.strip('"').strip("'")  # Remove any surrounding quotes
+            thread_id = thread_id.strip('"').strip("'")  # Remove any surrounding quotes
             if not chat_id.startswith('-100') and chat_id.isdigit():  # Ensure private group IDs have '-100'
                 chat_id = f"-100{chat_id}"
             print(f"Parsed chat_id: {chat_id}, message_thread_id: {thread_id}")  # Debug
             return chat_id, int(thread_id)  # Ensure thread ID is an integer
         print(f"Parsed chat_id: {self.destination}, no thread_id")  # Debug
-        return self.destination, None
+        return self.destination.strip('"').strip("'"), None
 
     def post_image(self, image_data, caption):
         """
