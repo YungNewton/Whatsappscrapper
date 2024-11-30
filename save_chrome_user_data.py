@@ -7,6 +7,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
+import time
 
 
 class WhatsAppLogin:
@@ -63,10 +64,12 @@ class WhatsAppLogin:
             # Keep the browser open for the user to close manually
             print("Login completed. Please close the browser window manually when done.")
             try:
-                self.driver.current_url  # Keep the browser open by checking its state
-            except Exception:
-                print("Browser closed by user.")
-
+                while True:
+                    time.sleep(1)  # Keeps the script alive
+            except KeyboardInterrupt:
+                print("Process interrupted by user.")
+            except Exception as e:
+                print(f"Browser closed unexpectedly: {e}")
 
     def close_driver(self):
         """

@@ -1,6 +1,8 @@
-from flask import Flask, request, jsonify, session, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
-from flask_login import LoginManager, login_user, logout_user, login_required, current_user
+from flask_jwt_extended import (
+    JWTManager, create_access_token, jwt_required, get_jwt_identity
+)
 from models import db, User, init_db
 from config import Config
 import threading
@@ -15,25 +17,21 @@ from werkzeug.security import check_password_hash
 
 app = Flask(__name__, static_folder='static', static_url_path='/')
 app.config.from_object(Config)
+
+# Configure JWT
+app.config["JWT_SECRET_KEY"] = "super_secret_key"  # Change this for production
+jwt = JWTManager(app)
+
 CORS(app, supports_credentials=True, resources={r"/*": {"origins": "http://localhost:3000"}})
 
-# Initialize database and Flask-Login
+# Initialize database
 init_db(app)
-login_manager = LoginManager(app)
-login_manager.login_view = '/login'
 
 # Shared variables for scrapers
 scraper = None
 cancel_event = threading.Event()
 scraper_lock = threading.Lock()
 user_scraper_processes = {}
-
-
-# SQLite user loader for Flask-Login
-@login_manager.user_loader
-def load_user(user_id):
-    return User.query.get(int(user_id))
-
 
 def start_scraper(user_id, chat_names, channel_username):
     """
@@ -78,6 +76,7 @@ def start_scraper(user_id, chat_names, channel_username):
             raise
 
 
+# Cleanup function for scrapers
 def cleanup():
     global scraper
     if scraper and scraper.poll() is None:
@@ -86,10 +85,8 @@ def cleanup():
         scraper.wait(timeout=40)
         print("Scraper process stopped.")
 
-
 # Register cleanup function
 atexit.register(cleanup)
-
 
 @app.route('/<path:path>')
 def serve_static_file(path):
@@ -97,17 +94,15 @@ def serve_static_file(path):
         return send_from_directory(app.static_folder, path)
     return send_from_directory(app.static_folder, 'index.html')
 
-
 @app.errorhandler(404)
 def handle_404(e):
     return send_from_directory(app.static_folder, 'index.html')
-
 
 @app.route('/')
 def serve_index():
     return send_from_directory(app.static_folder, 'index.html')
 
-
+# Login Route
 @app.route('/login', methods=['POST'])
 def login():
     data = request.json
@@ -116,30 +111,25 @@ def login():
 
     user = User.query.filter_by(email=email).first()
     if user and check_password_hash(user.password, password):
-        login_user(user)
-        print(f"[DEBUG] Session data: {session}")  # Debugging session creation
-        return jsonify({'message': 'Login successful'}), 200
+        # Create a JWT access token
+        access_token = create_access_token(identity={"id": user.id, "email": user.email})
+        return jsonify({'message': 'Login successful', 'access_token': access_token}), 200
     return jsonify({'message': 'Invalid email or password'}), 401
 
-
+# Logout Route (Not strictly needed with JWT but can invalidate tokens if you implement a blacklist)
 @app.route('/logout', methods=['POST'])
-@login_required
 def logout():
-    logout_user()
-    session.clear()
+    # JWT is stateless, so we don't really "logout" but you can use a blacklist system to handle invalid tokens.
     return jsonify({'message': 'Logged out successfully'}), 200
 
-
+# Check if User is Logged In
 @app.route('/is_logged_in', methods=['GET'])
+@jwt_required()
 def is_logged_in():
-    print(f"[DEBUG] Cookies in request: {request.cookies}")
-    print(f"[DEBUG] Current session: {session}")
-    print(f"[DEBUG] Current user authenticated: {current_user.is_authenticated}")
-    if current_user.is_authenticated:
-        return jsonify({'logged_in': True, 'email': current_user.email}), 200
-    return jsonify({'logged_in': False}), 200
+    current_user = get_jwt_identity()
+    return jsonify({'logged_in': True, 'email': current_user["email"]}), 200
 
-
+# Register Route
 @app.route('/register', methods=['POST'])
 def register():
     data = request.json
@@ -162,10 +152,12 @@ def register():
 
 
 @app.route('/scrape', methods=['POST'])
-@login_required
+@jwt_required()
 def scrape():
     global scraper, cancel_event
     cancel_event.clear()
+    current_user = get_jwt_identity()
+    user_id = current_user["id"]
     data = request.json
     chat_names = data.get('chatNames', [])
     channel_username = data.get('channelUsername')
@@ -179,23 +171,21 @@ def scrape():
         results = []
         for chat_name in chat_names:
             print(f"Skipping scrape for chat: {chat_name}")
-            # Commenting out the actual scraping logic
+            # Call the function to start the scraper (commented for now)
             try:
                 # Call the function to start `run_scraper.py`
-                start_scraper(current_user.id, chat_names, channel_username)
+                start_scraper(user_id, chat_names, channel_username)  # Use user_id correctly
 
             except Exception as e:
                 print(f"Error scraping chat '{chat_name}': {e}")
 
-        # Return a placeholder response
         return jsonify({"message": "success", "results": results}), 200
-
     except Exception as e:
         return jsonify({'message': f'Error: {str(e)}'}), 500
 
 
 @app.route('/cancel_scraping', methods=['POST'])
-@login_required
+@jwt_required()
 def cancel_scraping():
     global cancel_event, scraper
     if scraper is not None:
@@ -205,20 +195,24 @@ def cancel_scraping():
 
 
 @app.route('/link_whatsapp', methods=['POST'])
-@login_required
+@jwt_required()
 def link_whatsapp():
     try:
-        user_id = current_user.id
-        user_data_dir = f"chrome_user_data/user_{user_id}"
-        os.makedirs(user_data_dir, exist_ok=True)
-        whatsapp_login = WhatsAppLogin(user_data_dir=user_data_dir)
+        current_user = get_jwt_identity()
+        user_id = current_user["id"]
+
+        # Create the user-specific data directory
+        whatsapp_login = WhatsAppLogin(user_id=user_id, chrome_user_data_dir="chrome_user_data")
         threading.Thread(target=whatsapp_login.open_whatsapp_web, daemon=True).start()
+
         return jsonify({
             "message": "WhatsApp login initiated. Use the link to complete login.",
             "vnc_link": "http://34.132.58.174:8080/vnc.html"  # Replace with your actual server
         }), 200
+
     except Exception as e:
-        return jsonify({"message": f"Error: {str(e)}"}), 500
+        print(f"[ERROR] Failed to process /link_whatsapp: {e}")
+        return jsonify({"message": f"Internal server error: {str(e)}"}), 500
 
 
 if __name__ == "__main__":

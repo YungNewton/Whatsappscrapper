@@ -5,3 +5,7 @@ Flask-Cors
 requests
 flask-sock
 yagmail
+flask-jwt-extended
+flask-sqlalchemy
+python-dotenv
+Werkzeug
