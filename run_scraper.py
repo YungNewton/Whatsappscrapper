@@ -17,18 +17,21 @@ scraper_thread = None  # Declare and initialize here globally
 
 def parse_arguments():
     """
-    Parse command-line arguments for chat names and channel username.
+    Parse command-line arguments for user_id, chat names, and channel username.
     """
     parser = argparse.ArgumentParser(description="Run WhatsApp Scraper.")
+    parser.add_argument("--userId", required=True, help="Unique user ID")
     parser.add_argument("--chatNames", required=True, help="Comma-separated list of chat names to scrape")
     parser.add_argument("--channelUsername", required=True, help="Telegram channel username for posting")
 
     args = parser.parse_args()
 
     # Update global configuration
-    global CHAT_NAMES, CHANNEL_USERNAME
+    global USER_ID, CHAT_NAMES, CHANNEL_USERNAME
+    USER_ID = args.userId
     CHAT_NAMES = args.chatNames.split(",")  # Convert comma-separated string to list
     CHANNEL_USERNAME = args.channelUsername
+
 
 
 def scrape_last_10_minutes():
@@ -36,7 +39,7 @@ def scrape_last_10_minutes():
     Runs the WhatsApp scraper to scrape messages from the last 10 minutes.
     """
     current_time = datetime.now()
-    start_time = current_time - timedelta(minutes=60)
+    start_time = current_time - timedelta(minutes=15)
     time_start = start_time.strftime("%I:%M %p")
     time_end = current_time.strftime("%I:%M %p")
 
@@ -46,10 +49,12 @@ def scrape_last_10_minutes():
 
     # Pass the chat names list to the scraper
     scraper = WhatsAppScraper(
+        user_id=USER_ID,
         chat_names=CHAT_NAMES,
         telegram_poster=telegram_poster,
         headless=True
     )
+
 
     try:
         scraper.login()
@@ -65,7 +70,7 @@ def run_scraper_periodically():
         print(f"Starting scraper at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         scrape_last_10_minutes()
         print("Waiting to begin the next run...")
-        if not stop_event.wait(900):  # Wait 10 minutes or exit if stopped
+        if not stop_event.wait(900):  # Wait 15 minutes or exit if stopped
             continue
 
 

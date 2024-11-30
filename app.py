@@ -1,80 +1,77 @@
 from flask import Flask, request, jsonify, session, send_from_directory
 from flask_cors import CORS
-from datetime import timedelta
+from flask_login import LoginManager, login_user, logout_user, login_required, current_user
+from models import db, User, init_db
+from config import Config
 import threading
-from WhatsAppScraper import WhatsAppScraper  # Assuming this is the scraper class
-from TelegramPoster import TelegramPoster
-import sqlite3
 import subprocess
 import os
+import time
+from WhatsAppScraper import WhatsAppScraper
+from TelegramPoster import TelegramPoster
 from save_chrome_user_data import WhatsAppLogin
 import atexit
-import time
 
-app = Flask(__name__, static_folder='build', static_url_path='/')
-app.secret_key = 'super_secret_key'
-app.config['SESSION_PERMANENT'] = True
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=30)  # 30 minutes timeout
-CORS(app, supports_credentials=True)  # Allow cookies in cross-origin requests
+app = Flask(__name__, static_folder='static', static_url_path='/')
+app.config.from_object(Config)
+CORS(app, supports_credentials=True)
 
-# Shared variables for managing scraper instance and cancellation
+# Initialize database and Flask-Login
+init_db(app)
+login_manager = LoginManager(app)
+login_manager.login_view = '/login'
+
+# Shared variables for scrapers
 scraper = None
 cancel_event = threading.Event()
-scraper_process = None
-scraper_lock = threading.Lock()  # Global lock for thread safety
+scraper_lock = threading.Lock()
+user_scraper_processes = {}
 
+# SQLite user loader for Flask-Login
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
 
-# Initialize database with a single admin user
-def init_db():
-    conn = sqlite3.connect('db.sqlite')
-    cursor = conn.cursor()
-    cursor.execute('''CREATE TABLE IF NOT EXISTS users (email TEXT, password TEXT)''')
-    conn.commit()
-
-    # Add default admin user if not already in the database
-    cursor.execute("SELECT * FROM users WHERE email='admin@user.com'")
-    if cursor.fetchone() is None:
-        cursor.execute("INSERT INTO users (email, password) VALUES (?, ?)", ('admin@user.com', 'adminpassword'))
-        conn.commit()
-    conn.close()
-
-def start_scraper(chat_names, channel_username):
+def start_scraper(user_id, chat_names, channel_username):
     """
-    Stops any existing scraper process and starts a new one.
-    Ensures only one scraper process runs at a time using a thread-safe lock.
+    Starts a scraper process for a specific user.
     """
-    global scraper_process
-    with scraper_lock:  # Ensure thread-safe access
+    global user_scraper_processes
+    with scraper_lock:
         try:
-            # Check if a scraper process is already running
-            if scraper_process and scraper_process.poll() is None:
-                print("Stopping the existing scraper process...")
-                scraper_process.terminate()  # Send SIGTERM to stop the process
-                try:
-                    scraper_process.wait(timeout=10)  # Wait for graceful termination
-                except subprocess.TimeoutExpired:
-                    print("Existing scraper process did not terminate gracefully. Forcing termination...")
-                    scraper_process.kill()  # Force kill if needed
-                print("Existing scraper process stopped.")
-                time.sleep(10)
+            # Check if a scraper process is already running for this user
+            if user_id in user_scraper_processes:
+                existing_process = user_scraper_processes[user_id]
+                if existing_process.poll() is None:
+                    print(f"Stopping existing scraper process for user {user_id}...")
+                    existing_process.terminate()
+                    try:
+                        existing_process.wait(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        print("Existing scraper process did not terminate gracefully. Forcing termination...")
+                        existing_process.kill()
+                    print("Existing scraper process stopped.")
+                    time.sleep(5)
 
             # Prepare arguments for the new scraper process
-            print("Starting a new scraper process...")
+            print(f"Starting a new scraper process for user {user_id}...")
             chat_names_str = ",".join(chat_names)  # Convert list to comma-separated string
             args = [
                 "python3", "run_scraper.py",
                 "--chatNames", chat_names_str,
-                "--channelUsername", f'"{channel_username}"'  # Enclose in quotes
+                "--channelUsername", f'"{channel_username}"',
+                "--userId", str(user_id)  # Pass user ID to the scraper
             ]
-           
+
             # Start the new process
-            scraper_process = subprocess.Popen(
+            new_process = subprocess.Popen(
                 args, stdout=None, stderr=None, stdin=None, close_fds=True
             )
-            print(f"New scraper process started with PID {scraper_process.pid}")
+            user_scraper_processes[user_id] = new_process
+            print(f"New scraper process started for user {user_id} with PID {new_process.pid}")
 
         except Exception as e:
-            print(f"Error managing scraper process: {e}")
+            print(f"Error managing scraper process for user {user_id}: {e}")
             raise
 
 def cleanup():
@@ -104,53 +101,69 @@ def handle_404(e):
 def serve_index():
     return send_from_directory(app.static_folder, 'index.html')
 
-# Login endpoint
 @app.route('/login', methods=['POST'])
 def login():
-    data = request.get_json()
+    data = request.json
     email = data.get('email')
     password = data.get('password')
 
-    # Verify user credentials
-    conn = sqlite3.connect('db.sqlite')
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM users WHERE email = ? AND password = ?", (email, password))
-    user = cursor.fetchone()
-    conn.close()
-
-    if user:
-        session['user'] = email
-        session.permanent = True  # Enable session timeout
+    user = User.query.filter_by(email=email).first()
+    if user and user.password == password:  # Replace with `check_password_hash` for hashed passwords
+        login_user(user)
         return jsonify({'message': 'Login successful'}), 200
-    else:
-        return jsonify({'message': 'Invalid email or password'}), 401
+    return jsonify({'message': 'Invalid email or password'}), 401
 
-# Logout endpoint
 @app.route('/logout', methods=['POST'])
+@login_required
 def logout():
-    session.pop('user', None)
+    logout_user()
+    session.clear()
     return jsonify({'message': 'Logged out successfully'}), 200
 
-# Protected bot access route
-@app.route('/bot_access', methods=['GET'])
-def bot_access():
-    if 'user' in session:
-        return jsonify({'message': 'Access granted to bot interface'}), 200
-    else:
-        return jsonify({'message': 'Unauthorized access'}), 401
+@app.route('/is_logged_in', methods=['GET'])
+def is_logged_in():
+    if current_user.is_authenticated:
+        return jsonify({'logged_in': True, 'email': current_user.email}), 200
+    return jsonify({'logged_in': False}), 200
+
+@app.route('/register', methods=['POST'])
+def register():
+    data = request.json
+    email = data.get('email')
+    password = data.get('password')
+
+    if not email or not password:
+        return jsonify({'message': 'Email and password are required'}), 400
+
+    if User.query.filter_by(email=email).first():
+        return jsonify({'message': 'User with this email already exists'}), 409
+
+    try:
+        new_user = User(email=email, password=password)
+        db.session.add(new_user)
+        db.session.commit()
+        return jsonify({'message': 'User registered successfully'}), 201
+    except Exception as e:
+        return jsonify({'message': 'An error occurred', 'error': str(e)}), 500
 
 # Keep-alive endpoint
 @app.route('/keep_alive', methods=['GET'])
 def keep_alive():
-    if 'user' in session:
+    if 'user_id' in session:
         session.modified = True  # Refresh the session
         return jsonify({'message': 'Session kept alive'}), 200
     return jsonify({'message': 'No active session'}), 401
 
+@login_required
 @app.route('/scrape', methods=['POST', 'OPTIONS'])
 def scrape():
     if request.method == 'OPTIONS':
         return jsonify({"message": "Preflight request handled"}), 200
+    
+    if 'user_id' not in session:
+        return jsonify({"message": "Unauthorized"}), 401
+
+    user_id = session['user_id']
 
     global scraper, cancel_event
     cancel_event.clear()
@@ -184,7 +197,17 @@ def scrape():
             # Commenting out the actual scraping logic
             try:
                 # Call the function to start `run_scraper.py`
-                start_scraper(chat_names, channel_username)
+                start_scraper(user_id, chat_names, channel_username)
+
+                # Optionally, insert a record into the `scraping_sessions` table
+                conn = sqlite3.connect('db.sqlite')
+                cursor = conn.cursor()
+                cursor.execute(
+                    "INSERT INTO scraping_sessions (user_id, chat_names, channel_username, status) VALUES (?, ?, ?, ?)",
+                    (user_id, ",".join(chat_names), channel_username, "running")
+                )
+                conn.commit()
+                conn.close()
 
             except Exception as e:
                 print(f"Error scraping chat '{chat_name}': {e}")
@@ -200,6 +223,7 @@ def scrape():
         scraper = None
 
 # Cancel scraping endpoint
+@login_required        
 @app.route('/cancel_scraping', methods=['POST'])
 def cancel_scraping():
     global cancel_event, scraper
@@ -209,16 +233,26 @@ def cancel_scraping():
     else:
         return jsonify({"message": "No scraping process is currently running."}), 400
     
+@login_required
 @app.route('/link_whatsapp', methods=['POST'])
 def link_whatsapp():
     """
-    Start a WhatsApp Web login session.
+    Start a WhatsApp Web login session for a specific user.
     """
-    try:
-        print("[DEBUG] Received request to initiate WhatsApp login.")
+    if 'user_id' not in session:
+        return jsonify({"message": "Unauthorized"}), 401
 
-        # Initialize the WhatsAppLogin class
-        whatsapp_login = WhatsAppLogin()
+    user_id = session['user_id']
+
+    try:
+        print(f"[DEBUG] Received request to initiate WhatsApp login for user {user_id}.")
+
+        # Define user-specific Chrome user data directory
+        user_data_dir = f"chrome_user_data/user_{user_id}"
+        os.makedirs(user_data_dir, exist_ok=True)
+
+        # Initialize the WhatsAppLogin class with the user-specific directory
+        whatsapp_login = WhatsAppLogin(user_data_dir=user_data_dir)
 
         # Verify that the VNC server is running
         vnc_server_check = subprocess.run(
@@ -233,13 +267,13 @@ def link_whatsapp():
             return jsonify({"message": error_msg}), 500
         print("[DEBUG] VNC server is confirmed to be running.")
 
-        # Start the WhatsApp login process
-        print("[DEBUG] Starting WhatsApp login process in a new thread.")
+        # Start the WhatsApp login process in a new thread
+        print(f"[DEBUG] Starting WhatsApp login process for user {user_id} in a new thread.")
         threading.Thread(target=whatsapp_login.open_whatsapp_web, daemon=True).start()
 
         # Prepare the VNC link for the user
-        vnc_link = "http://34.132.58.174:8080/vnc.html"  # Replace <localhost> with your actual server IP or domain
-        print(f"[DEBUG] Generated VNC link: {vnc_link}")
+        vnc_link = "http://34.132.58.174:8080/vnc.html"  # Update with your server IP or domain
+        print(f"[DEBUG] Generated VNC link for user {user_id}: {vnc_link}")
 
         # Return the response with the VNC link
         return jsonify({
@@ -249,11 +283,10 @@ def link_whatsapp():
 
     except Exception as e:
         # Log and return any exceptions
-        error_message = f"[ERROR] Exception occurred while starting WhatsApp login: {e}"
+        error_message = f"[ERROR] Exception occurred while starting WhatsApp login for user {user_id}: {e}"
         print(error_message)
         return jsonify({"message": error_message}), 500
 
 # Initialize the database
 if __name__ == "__main__":
-    init_db()
     app.run(host="0.0.0.0", port=5000,debug=True)

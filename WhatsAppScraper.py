@@ -26,7 +26,7 @@ import yagmail
 # Email configuration
 YAGMAIL_USER = "isaacnewtonahanmisi@gmail.com"
 YAGMAIL_PASSWORD = "muid bjaw knqe adig"
-NOTIFICATION_RECIPIENTS = ["isaacnewtonahanmisi@gmail.com"]
+NOTIFICATION_RECIPIENTS = ["isaacnewtonahanmisi@gmail.com", "coursechief5@gmail.com"]
 
 def send_session_invalid_email():
     """
@@ -46,11 +46,12 @@ def send_session_invalid_email():
         print(f"Failed to send session invalid email: {e}")
 
 class WhatsAppScraper:
-    def __init__(self, chat_names, date_limit=None, scrape_all=False, new_session=False, cancel_event=None, telegram_poster=None, headless=True):
+    def __init__(self, user_id, chat_names, date_limit=None, scrape_all=False, new_session=False, cancel_event=None, telegram_poster=None, headless=True):
+        self.user_id = user_id  # Unique identifier for the user
         self.chat_names = chat_names  # List of chat names
         self.date_limit = date_limit
         self.scrape_all = scrape_all
-        self.original_user_data_dir = os.path.join(os.getcwd(), "chrome_user_data")
+        self.original_user_data_dir = os.path.join(os.getcwd(), "chrome_user_data", f"user_{self.user_id}")
         self.user_data_dir = tempfile.mkdtemp()
         self.cancel_event = cancel_event or threading.Event()
         self.telegram_poster = telegram_poster
@@ -540,46 +541,46 @@ class WhatsAppScraper:
 
                     temp_file_path = None
 
-                    # # Process blob image
-                    # if blob_image:
-                    #     blob_url = blob_image.get_attribute("src")
-                    #     print(f"Blob URL: {blob_url}")
+                    # Process blob image
+                    if blob_image:
+                        blob_url = blob_image.get_attribute("src")
+                        print(f"Blob URL: {blob_url}")
 
-                    #     # # Skip duplicate blob URLs
-                    #     # if blob_url in processed_blob_urls:
-                    #     #     print(f"Message {idx + 1}: Duplicate Blob URL detected. Skipping...")
-                    #     #     continue
-                    #     # processed_blob_urls.add(blob_url)
+                        # # Skip duplicate blob URLs
+                        # if blob_url in processed_blob_urls:
+                        #     print(f"Message {idx + 1}: Duplicate Blob URL detected. Skipping...")
+                        #     continue
+                        # processed_blob_urls.add(blob_url)
 
-                    #     if not blob_url or not blob_url.startswith("blob:"):
-                    #         print(f"Message {idx + 1}: Invalid blob URL, skipping.")
-                    #         continue
+                        if not blob_url or not blob_url.startswith("blob:"):
+                            print(f"Message {idx + 1}: Invalid blob URL, skipping.")
+                            continue
 
-                    #     try:
-                    #         base64_data = self.fetch_blob_with_retries(self.driver, blob_url, retries=5, delay=3)  # Adjust retries and delay as needed
-                    #         if base64_data:
-                    #             base64_content = base64_data.split(",")[1]
-                    #             temp_file_path = os.path.join(temp_dir, f"extracted_image_{idx + 1}.png")
-                    #             with open(temp_file_path, "wb") as file:
-                    #                 file.write(base64.b64decode(base64_content))
-                    #             print(f"Message {idx + 1}: Blob image saved to {temp_file_path}.")
-                    #         else:
-                    #             print(f"Message {idx + 1}: Failed to fetch blob after retries.")
-                    #     except Exception as e:
-                    #         print(f"Message {idx + 1}: Error fetching blob URL. Error: {e}")
+                        try:
+                            base64_data = self.fetch_blob_with_retries(self.driver, blob_url, retries=5, delay=3)  # Adjust retries and delay as needed
+                            if base64_data:
+                                base64_content = base64_data.split(",")[1]
+                                temp_file_path = os.path.join(temp_dir, f"extracted_image_{idx + 1}.png")
+                                with open(temp_file_path, "wb") as file:
+                                    file.write(base64.b64decode(base64_content))
+                                print(f"Message {idx + 1}: Blob image saved to {temp_file_path}.")
+                            else:
+                                print(f"Message {idx + 1}: Failed to fetch blob after retries.")
+                        except Exception as e:
+                            print(f"Message {idx + 1}: Error fetching blob URL. Error: {e}")
                             
-                    # # Process base64 image
-                    # elif base64_image:
-                    #     image_src = base64_image.get_attribute("src")
-                    #     print(f"Message {idx + 1}: Base64 image src - {image_src}")
-                    #     try:
-                    #         base64_content = image_src.split(",")[1]
-                    #         temp_file_path = os.path.join(temp_dir, f"extracted_image_{idx + 1}.png")
-                    #         with open(temp_file_path, "wb") as file:
-                    #             file.write(base64.b64decode(base64_content))
-                    #         print(f"Message {idx + 1}: Base64 image saved to {temp_file_path}.")
-                    #     except Exception as e:
-                    #         print(f"Message {idx + 1}: Error processing base64 image. Error: {e}")
+                    # Process base64 image
+                    elif base64_image:
+                        image_src = base64_image.get_attribute("src")
+                        print(f"Message {idx + 1}: Base64 image src - {image_src}")
+                        try:
+                            base64_content = image_src.split(",")[1]
+                            temp_file_path = os.path.join(temp_dir, f"extracted_image_{idx + 1}.png")
+                            with open(temp_file_path, "wb") as file:
+                                file.write(base64.b64decode(base64_content))
+                            print(f"Message {idx + 1}: Base64 image saved to {temp_file_path}.")
+                        except Exception as e:
+                            print(f"Message {idx + 1}: Error processing base64 image. Error: {e}")
 
                     # Fallback to screenshot
                     if not temp_file_path:
@@ -608,21 +609,47 @@ class WhatsAppScraper:
                                     file.write(base64.b64decode(base64_content))
                                 print(f"Message {idx + 1}: Blob image saved to {temp_file_path} after retry.")
                             else:
-                                print(f"Message {idx + 1}: Blob retry failed. Taking fallback screenshot.")
+                                print(f"Message {idx + 1}: Blob retry failed.")
+                        except Exception as e:
+                            print(f"Message {idx + 1}: Error handling fallback for blob fetch. Error: {e}")
 
-                                # Take a screenshot of the image element while the viewer is open
+                        # Always attempt fallback screenshot if blob fetch or retry fails
+                        if not temp_file_path:
+                            print(f"Message {idx + 1}: Fetching blob failed. Attempting to ensure image is open for fallback.")
+                            try:
+                                # Ensure the image is open before taking a screenshot
+                                try:
+                                    # Scroll the image into view
+                                    self.driver.execute_script("arguments[0].scrollIntoView(true);", blob_image)
+                                    print("scrolling")
+                                    time.sleep(1)  # Allow scrolling to complete
+                                    
+                                    # Try clicking the image to open the viewer if it's not already open
+                                    if not self.driver.find_elements(By.XPATH, '//img[contains(@src, "blob:")]'):
+                                        WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable((By.XPATH, './/img[contains(@src, "blob:")]')))
+                                        blob_image.click()
+                                        time.sleep(2)  # Allow the viewer to load
+
+                                except Exception as e:
+                                    print(f"Message {idx + 1}: Could not open image viewer. Error: {e}")
+
+                                # Now take a screenshot of the open viewer
+                                blob_image_viewer = self.driver.find_element(By.XPATH, '//img[contains(@src, "blob:")]')
                                 screenshot_path = os.path.join(temp_dir, f"screenshot_image_{idx + 1}.png")
                                 blob_image_viewer.screenshot(screenshot_path)
                                 print(f"Message {idx + 1}: Screenshot saved to {screenshot_path}.")
                                 temp_file_path = screenshot_path
 
-                            # Close the image viewer
+                            except Exception as e:
+                                print(f"Message {idx + 1}: Error taking fallback screenshot. Error: {e}")
+
+                        # Close the image viewer if it's still open
+                        try:
                             close_button = self.driver.find_element(By.XPATH, '//div[@title="Close"]')
                             close_button.click()
                             time.sleep(1)
-                        except Exception as e:
-                            print(f"Message {idx + 1}: Error handling fallback for blob fetch. Error: {e}")
-
+                        except Exception:
+                            print(f"Message {idx + 1}: Could not find or click close button.")
 
                     # Append processed message
                     processed_messages.append({

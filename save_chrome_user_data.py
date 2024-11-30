@@ -10,20 +10,21 @@ from webdriver_manager.chrome import ChromeDriverManager
 
 
 class WhatsAppLogin:
-    def __init__(self, chrome_user_data_dir="chrome_user_data"):
-        self.chrome_user_data_dir = os.path.join(os.getcwd(), chrome_user_data_dir)
+    def __init__(self, user_id, chrome_user_data_dir="chrome_user_data"):
+        self.user_id = user_id
+        self.chrome_user_data_dir = os.path.join(os.getcwd(), chrome_user_data_dir, f"user_{user_id}")
         self.driver = None
         self.clear_user_data()
 
     def clear_user_data(self):
         """
-        Delete the chrome_user_data directory to start fresh.
+        Delete the user-specific chrome_user_data directory to start fresh.
         """
         if os.path.exists(self.chrome_user_data_dir):
-            print(f"Deleting existing user data directory: {self.chrome_user_data_dir}")
+            print(f"Deleting existing user data directory for user {self.user_id}: {self.chrome_user_data_dir}")
             shutil.rmtree(self.chrome_user_data_dir)
         else:
-            print(f"No existing user data directory found: {self.chrome_user_data_dir}")
+            print(f"No existing user data directory found for user {self.user_id}.")
 
     def init_driver(self):
         """
@@ -35,7 +36,6 @@ class WhatsAppLogin:
         chrome_options.add_argument("--disable-dev-shm-usage")
         chrome_options.add_argument("--start-maximized")
         chrome_options.add_argument("--window-size=1280,720")
-        # chrome_options.binary_location = "/usr/bin/google-chrome"  # Set Chrome binary path if needed
 
         self.driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
         self.driver.set_window_size(1280, 720)
@@ -60,7 +60,13 @@ class WhatsAppLogin:
         except Exception as e:
             print(f"Error during WhatsApp login: {e}")
         finally:
-            self.close_driver()
+            # Keep the browser open for the user to close manually
+            print("Login completed. Please close the browser window manually when done.")
+            try:
+                self.driver.current_url  # Keep the browser open by checking its state
+            except Exception:
+                print("Browser closed by user.")
+
 
     def close_driver(self):
         """
