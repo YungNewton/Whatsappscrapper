@@ -1,3 +1,2 @@
-2024/11/30-19:43:09.245 b203 Reusing MANIFEST /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmppdfqw37m/Default/Service Worker/Database/MANIFEST-000001
-2024/11/30-19:43:09.249 b203 Recovering log #3
-2024/11/30-19:43:09.251 b203 Reusing old log /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmppdfqw37m/Default/Service Worker/Database/000003.log 
+2024/12/01-03:37:20.668 6907 Creating DB /Users/decagon/quick_campaigns_backend/product_upload_bot/chrome_user_data/user_2/Default/Service Worker/Database since it was missing.
+2024/12/01-03:37:20.728 6907 Reusing MANIFEST /Users/decagon/quick_campaigns_backend/product_upload_bot/chrome_user_data/user_2/Default/Service Worker/Database/MANIFEST-000001

@@ -1,3 +1,2 @@
-2024/11/30-19:43:09.978 3203 Reusing MANIFEST /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmppdfqw37m/Default/Session Storage/MANIFEST-000001
-2024/11/30-19:43:09.990 3203 Recovering log #3
-2024/11/30-19:43:09.992 3203 Reusing old log /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmppdfqw37m/Default/Session Storage/000003.log 
+2024/12/01-03:37:13.861 1c07 Creating DB /Users/decagon/quick_campaigns_backend/product_upload_bot/chrome_user_data/user_2/Default/Session Storage since it was missing.
+2024/12/01-03:37:13.927 1c07 Reusing MANIFEST /Users/decagon/quick_campaigns_backend/product_upload_bot/chrome_user_data/user_2/Default/Session Storage/MANIFEST-000001

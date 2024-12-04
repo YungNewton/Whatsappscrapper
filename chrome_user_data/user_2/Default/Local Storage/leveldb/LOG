@@ -1,3 +1,2 @@
-2024/11/30-19:43:09.978 2b07 Reusing MANIFEST /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmppdfqw37m/Default/Local Storage/leveldb/MANIFEST-000001
-2024/11/30-19:43:09.991 2b07 Recovering log #3
-2024/11/30-19:43:09.992 2b07 Reusing old log /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmppdfqw37m/Default/Local Storage/leveldb/000003.log 
+2024/12/01-03:37:12.908 1c07 Creating DB /Users/decagon/quick_campaigns_backend/product_upload_bot/chrome_user_data/user_2/Default/Local Storage/leveldb since it was missing.
+2024/12/01-03:37:13.010 1c07 Reusing MANIFEST /Users/decagon/quick_campaigns_backend/product_upload_bot/chrome_user_data/user_2/Default/Local Storage/leveldb/MANIFEST-000001

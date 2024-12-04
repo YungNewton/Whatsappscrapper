@@ -7,6 +7,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
+import undetected_chromedriver as uc
 import time
 
 
@@ -31,14 +32,16 @@ class WhatsAppLogin:
         """
         Initialize the Chrome WebDriver with the necessary options.
         """
-        chrome_options = Options()
-        chrome_options.add_argument(f"--user-data-dir={self.chrome_user_data_dir}")  # Persist user data
-        chrome_options.add_argument("--no-sandbox")
-        chrome_options.add_argument("--disable-dev-shm-usage")
-        chrome_options.add_argument("--start-maximized")
-        chrome_options.add_argument("--window-size=1280,720")
+        options = uc.ChromeOptions()
+        options.add_argument(f"--user-data-dir={self.chrome_user_data_dir}")  # Persist user data
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")  # Disable shared memory usage
+        options.add_argument("--disable-gpu")  # Disable GPU rendering
+        options.add_argument("--start-maximized")  # Start browser maximized
+        options.add_argument("--disable-blink-features=AutomationControlled")  # Prevent automation detection
+        options.add_argument("--window-size=1280,720")
 
-        self.driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+        self.driver = uc.Chrome(options=options)  # Initialize undetected ChromeDriver
         self.driver.set_window_size(1280, 720)
 
     def open_whatsapp_web(self):
@@ -52,24 +55,33 @@ class WhatsAppLogin:
         self.driver.get("https://web.whatsapp.com")
 
         try:
-            # Wait until login is detected
-            print("Waiting for login...")
+            # Wait until WhatsApp Web starts loading
+            print("Waiting for WhatsApp Web to load...")
             WebDriverWait(self.driver, 600).until(
                 EC.presence_of_element_located((By.XPATH, '//span[@data-icon="chats-filled"]'))
             )
-            print("Login detected. Chrome user data saved successfully.")
+            
+            # Wait indefinitely for user to close the browser
+            print("Waiting for the user to complete login and close the browser...")
+            while True:
+                try:
+                    # Poll the browser to check if it is still open
+                    if not self.driver.window_handles:
+                        print("Browser closed by the user. Chrome user data saved successfully.")
+                        break
+                except Exception as e:
+                    print(f"Browser state check failed: {e}")
+                    break
+                time.sleep(1)
+
         except Exception as e:
             print(f"Error during WhatsApp login: {e}")
+
         finally:
-            # Keep the browser open for the user to close manually
-            print("Login completed. Please close the browser window manually when done.")
-            try:
-                while True:
-                    time.sleep(1)  # Keeps the script alive
-            except KeyboardInterrupt:
-                print("Process interrupted by user.")
-            except Exception as e:
-                print(f"Browser closed unexpectedly: {e}")
+            # Ensure proper cleanup if the browser was closed
+            self.close_driver()
+            print("Browser session ended.")
+
 
     def close_driver(self):
         """
@@ -82,5 +94,5 @@ class WhatsAppLogin:
 
 # Example usage (if running independently)
 if __name__ == "__main__":
-    whatsapp_login = WhatsAppLogin()
+    whatsapp_login = WhatsAppLogin(user_id = 4)
     whatsapp_login.open_whatsapp_web()

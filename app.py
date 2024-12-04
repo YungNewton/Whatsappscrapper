@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from flask_jwt_extended import (
-    JWTManager, create_access_token, jwt_required, get_jwt_identity
+    JWTManager, create_access_token, jwt_required, get_jwt_identity, get_jwt
 )
 from models import db, User, init_db
 from config import Config
@@ -15,14 +15,14 @@ from save_chrome_user_data import WhatsAppLogin
 import atexit
 from werkzeug.security import check_password_hash
 
-app = Flask(__name__, static_folder='static', static_url_path='/')
+app = Flask(__name__, static_folder='build', static_url_path='/')
 app.config.from_object(Config)
 
 # Configure JWT
 app.config["JWT_SECRET_KEY"] = "super_secret_key"  # Change this for production
 jwt = JWTManager(app)
 
-CORS(app, supports_credentials=True, resources={r"/*": {"origins": "http://localhost:3000"}})
+CORS(app, supports_credentials=True)
 
 # Initialize database
 init_db(app)
@@ -33,7 +33,7 @@ cancel_event = threading.Event()
 scraper_lock = threading.Lock()
 user_scraper_processes = {}
 
-def start_scraper(user_id, chat_names, channel_username):
+def start_scraper(user_id, user_email, chat_names, channel_username):
     """
     Starts a scraper process for a specific user.
     """
@@ -61,7 +61,8 @@ def start_scraper(user_id, chat_names, channel_username):
                 "python3", "run_scraper.py",
                 "--chatNames", chat_names_str,
                 "--channelUsername", f'"{channel_username}"',
-                "--userId", str(user_id)  # Pass user ID to the scraper
+                "--userId", str(user_id),  # Pass user ID to the scraper
+                "--userEmail", user_email  # Pass user email to the scraper
             ]
 
             # Start the new process
@@ -112,7 +113,10 @@ def login():
     user = User.query.filter_by(email=email).first()
     if user and check_password_hash(user.password, password):
         # Create a JWT access token
-        access_token = create_access_token(identity={"id": user.id, "email": user.email})
+        access_token = create_access_token(
+            identity=str(user.id),  # Ensure identity is a string (user ID)
+            additional_claims={"email": user.email}  # Add email as additional claims
+        )
         return jsonify({'message': 'Login successful', 'access_token': access_token}), 200
     return jsonify({'message': 'Invalid email or password'}), 401
 
@@ -126,8 +130,11 @@ def logout():
 @app.route('/is_logged_in', methods=['GET'])
 @jwt_required()
 def is_logged_in():
-    current_user = get_jwt_identity()
-    return jsonify({'logged_in': True, 'email': current_user["email"]}), 200
+    user_id = get_jwt_identity()  # Returns the user ID as a string
+    user = User.query.get(int(user_id))  # Fetch the user from the database using ID
+    if user:
+        return jsonify({'logged_in': True, 'email': user.email}), 200
+    return jsonify({'logged_in': False, 'message': 'User not found'}), 404
 
 # Register Route
 @app.route('/register', methods=['POST'])
@@ -154,10 +161,18 @@ def register():
 @app.route('/scrape', methods=['POST'])
 @jwt_required()
 def scrape():
+    """
+    Endpoint to start the scraping process.
+    """
     global scraper, cancel_event
     cancel_event.clear()
-    current_user = get_jwt_identity()
-    user_id = current_user["id"]
+    current_user_id = get_jwt_identity()
+    user = User.query.get(int(current_user_id))  # Fetch the user object
+    if not user:
+        return jsonify({'message': 'User not found'}), 404
+
+    user_id = user.id
+    user_email = user.email
     data = request.json
     chat_names = data.get('chatNames', [])
     channel_username = data.get('channelUsername')
@@ -170,12 +185,10 @@ def scrape():
     try:
         results = []
         for chat_name in chat_names:
-            print(f"Skipping scrape for chat: {chat_name}")
-            # Call the function to start the scraper (commented for now)
+            print(f"Processing scrape for chat: {chat_name}")
             try:
-                # Call the function to start `run_scraper.py`
-                start_scraper(user_id, chat_names, channel_username)  # Use user_id correctly
-
+                # Call the function to start `run_scraper.py` with the email included
+                start_scraper(user_id, user_email, chat_names, channel_username)
             except Exception as e:
                 print(f"Error scraping chat '{chat_name}': {e}")
 
@@ -198,8 +211,12 @@ def cancel_scraping():
 @jwt_required()
 def link_whatsapp():
     try:
-        current_user = get_jwt_identity()
-        user_id = current_user["id"]
+        # Get user ID from identity (always a string)
+        user_id = get_jwt_identity()
+
+        # Get additional claims (email in this case)
+        claims = get_jwt()  # Fetch all claims
+        user_email = claims.get("email")  # Access email claim if needed
 
         # Create the user-specific data directory
         whatsapp_login = WhatsAppLogin(user_id=user_id, chrome_user_data_dir="chrome_user_data")

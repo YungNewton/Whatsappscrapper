@@ -18,6 +18,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
 from selenium.common.exceptions import StaleElementReferenceException
 from webdriver_manager.chrome import ChromeDriverManager
+import undetected_chromedriver as uc
 import calendar
 import threading
 import re
@@ -28,9 +29,9 @@ YAGMAIL_USER = "isaacnewtonahanmisi@gmail.com"
 YAGMAIL_PASSWORD = "muid bjaw knqe adig"
 NOTIFICATION_RECIPIENTS = ["isaacnewtonahanmisi@gmail.com", "coursechief5@gmail.com"]
 
-def send_session_invalid_email():
+def send_session_invalid_email(user_email):
     """
-    Sends an email notification when the WhatsApp session is no longer valid.
+    Sends an email notification to the specific user when the WhatsApp session is no longer valid.
     """
     try:
         yag = yagmail.SMTP(YAGMAIL_USER, YAGMAIL_PASSWORD)
@@ -40,14 +41,15 @@ def send_session_invalid_email():
             "Please log in again to continue scraping. "
             "If this was unexpected, please ensure your session has not been terminated by another device."
         )
-        yag.send(to=NOTIFICATION_RECIPIENTS, subject=subject, contents=body)
-        print("Session invalid email sent successfully.")
+        yag.send(to=user_email, subject=subject, contents=body)
+        print(f"Session invalid email sent successfully to {user_email}.")
     except Exception as e:
-        print(f"Failed to send session invalid email: {e}")
+        print(f"Failed to send session invalid email to {user_email}: {e}")
 
 class WhatsAppScraper:
-    def __init__(self, user_id, chat_names, date_limit=None, scrape_all=False, new_session=False, cancel_event=None, telegram_poster=None, headless=True):
+    def __init__(self, user_id, user_email, chat_names, date_limit=None, scrape_all=False, new_session=False, cancel_event=None, telegram_poster=None, headless=True):
         self.user_id = user_id  # Unique identifier for the user
+        self.user_email = user_email  # User's email address for notifications
         self.chat_names = chat_names  # List of chat names
         self.date_limit = date_limit
         self.scrape_all = scrape_all
@@ -63,22 +65,20 @@ class WhatsAppScraper:
         """
         Initialize the WebDriver with the temporary user data directory.
         """
-        chrome_options = Options()
-        chrome_options.add_argument(f"--user-data-dir={self.user_data_dir}")
-        chrome_options.add_argument("--disable-webrtc")
-        chrome_options.add_argument("--disable-media-stream")
-        chrome_options.add_argument("--no-sandbox")
-        chrome_options.add_argument("--disable-dev-shm-usage")
-        chrome_options.add_argument("--start-maximized")
-        chrome_options.add_argument("--window-size=1280,720")
-        chrome_options.add_argument("--disable-web-security")  # Disable CORS restrictions
-        chrome_options.add_argument("--allow-running-insecure-content")
+        options = uc.ChromeOptions()
+        options.add_argument(f"--user-data-dir={self.user_data_dir}")
+        options.add_argument("--disable-webrtc")
+        options.add_argument("--disable-media-stream")
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--start-maximized")
+        options.add_argument("--window-size=1280,720")
+        options.add_argument("--disable-web-security")  # Disable CORS restrictions
+        options.add_argument("--allow-running-insecure-content")
+        options.add_argument("--disable-blink-features=AutomationControlled")  # Bypass detection
+        options.add_argument("--disable-gpu")
 
-        if self.headless:
-            # chrome_options.add_argument("--headless")
-            chrome_options.add_argument("--disable-gpu")
-
-        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+        driver = uc.Chrome(options=options)
         return driver
 
     def setup_symlinks(self):
@@ -137,7 +137,7 @@ class WhatsAppScraper:
             return True
         except:
             print("WhatsApp session is no longer valid.")
-            send_session_invalid_email()  # Trigger email notification
+            send_session_invalid_email(self.user_email)  # Trigger email notification
             return False
 
     def wait_for_login(self):
@@ -792,6 +792,8 @@ if __name__ == "__main__":
     
     # Initialize the scraper
     scraper = WhatsAppScraper(
+        user_id= 1,
+        user_email="admin@user.com",
         chat_names=chat_names,
         date_limit="11/01/2024",
         scrape_all=False,

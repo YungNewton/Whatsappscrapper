@@ -9,3 +9,5 @@ flask-jwt-extended
 flask-sqlalchemy
 python-dotenv
 Werkzeug
+Flask-Login
+undetected_chromedriver

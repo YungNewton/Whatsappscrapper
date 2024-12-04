@@ -1,3 +1,2 @@
-2024/11/30-19:43:10.177 6d03 Reusing MANIFEST /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmppdfqw37m/Default/shared_proto_db/MANIFEST-000001
-2024/11/30-19:43:10.178 6d03 Recovering log #3
-2024/11/30-19:43:10.278 6d03 Reusing old log /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmppdfqw37m/Default/shared_proto_db/000003.log 
+2024/12/01-03:37:14.556 6c03 Creating DB /Users/decagon/quick_campaigns_backend/product_upload_bot/chrome_user_data/user_2/Default/shared_proto_db since it was missing.
+2024/12/01-03:37:14.606 6c03 Reusing MANIFEST /Users/decagon/quick_campaigns_backend/product_upload_bot/chrome_user_data/user_2/Default/shared_proto_db/MANIFEST-000001

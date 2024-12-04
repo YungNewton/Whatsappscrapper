@@ -21,14 +21,16 @@ def parse_arguments():
     """
     parser = argparse.ArgumentParser(description="Run WhatsApp Scraper.")
     parser.add_argument("--userId", required=True, help="Unique user ID")
+    parser.add_argument("--userEmail", required=True, help="Email of the user for notifications")
     parser.add_argument("--chatNames", required=True, help="Comma-separated list of chat names to scrape")
     parser.add_argument("--channelUsername", required=True, help="Telegram channel username for posting")
 
     args = parser.parse_args()
 
     # Update global configuration
-    global USER_ID, CHAT_NAMES, CHANNEL_USERNAME
+    global USER_ID, USER_EMAIL, CHAT_NAMES, CHANNEL_USERNAME
     USER_ID = args.userId
+    USER_EMAIL = args.userEmail
     CHAT_NAMES = args.chatNames.split(",")  # Convert comma-separated string to list
     CHANNEL_USERNAME = args.channelUsername
 
@@ -50,6 +52,7 @@ def scrape_last_10_minutes():
     # Pass the chat names list to the scraper
     scraper = WhatsAppScraper(
         user_id=USER_ID,
+        user_email=USER_EMAIL,
         chat_names=CHAT_NAMES,
         telegram_poster=telegram_poster,
         headless=True
