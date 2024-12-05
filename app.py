@@ -51,6 +51,9 @@ def start_scraper(user_id, user_email, chat_names, channel_username):
                     except subprocess.TimeoutExpired:
                         print("Existing scraper process did not terminate gracefully. Forcing termination...")
                         existing_process.kill()
+                    
+                    os.system("pkill -f chrome")
+                    os.system("pkill -f chromedriver")
                     print("Existing scraper process stopped.")
                     time.sleep(5)
 

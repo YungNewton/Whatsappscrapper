@@ -6,6 +6,6 @@ class Config:
     SESSION_COOKIE_SAMESITE = "None"  # Allows cross-origin cookies
     SESSION_COOKIE_SECURE = False     # Set to True if using HTTPS
     SESSION_PERMANENT = True
-    PERMANENT_SESSION_LIFETIME = timedelta(days=30)  # 30-days timeout
+    PERMANENT_SESSION_LIFETIME = timedelta(days=30)  
     SQLALCHEMY_DATABASE_URI = "sqlite:///db.sqlite"
     SQLALCHEMY_TRACK_MODIFICATIONS = False

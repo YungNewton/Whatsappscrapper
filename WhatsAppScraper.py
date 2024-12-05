@@ -79,6 +79,7 @@ class WhatsAppScraper:
         options.add_argument("--disable-gpu")
 
         driver = uc.Chrome(options=options)
+        driver.set_window_size(1280, 720)
         return driver
 
     def setup_symlinks(self):
@@ -513,7 +514,17 @@ class WhatsAppScraper:
                             message_time = datetime.strptime(timestamp_text, "%H:%M")  # 24-hour format
                     except (NoSuchElementException, ValueError) as e:
                         print(f"Message {idx + 1}: Timestamp not found or invalid.")
-                        message_time = None
+                        try:
+                            timestamp_element = message.find_element(By.XPATH, './/span[@class="x1c4vz4f x2lah0s"]')
+                            timestamp_text = timestamp_element.text
+                            try:
+                                message_time = datetime.strptime(timestamp_text, "%I:%M %p")  # 12-hour format
+                            except ValueError:
+                                message_time = datetime.strptime(timestamp_text, "%H:%M")  # 24-hour format
+                            print(f"Fallback timestamp successfully extracted.")
+                        except (NoSuchElementException, ValueError) as fallback_error:
+                            print(f"Fallback timestamp extraction also failed for message {idx + 1}: {fallback_error}.")
+                            message_time = None
 
                     # Adjust for overnight ranges
                     time_end_dt_adjusted = time_end_dt + timedelta(days=1) if range_crosses_midnight else time_end_dt
@@ -586,18 +597,21 @@ class WhatsAppScraper:
                     if not temp_file_path:
                         print(f"Message {idx + 1}: Fetching blob failed. Clicking the image to retry.")
                         try:
-                            # Scroll the image into view
-                            self.driver.execute_script("arguments[0].scrollIntoView(true);", blob_image)
-                            time.sleep(1)  # Allow time for scrolling to complete
+                            # Scroll the image into view and wait until it is visible
+                            self.driver.execute_script("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", blob_image)
 
                             # Wait until the image is clickable
                             WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable((By.XPATH, './/img[contains(@src, "blob:")]')))
+
                             # Click the image to open the viewer
                             blob_image.click()
-                            time.sleep(2)  # Wait for the image to load
+
+                            # Wait for the viewer to load the image
+                            blob_image_viewer = WebDriverWait(self.driver, 10).until(
+                                EC.presence_of_element_located((By.XPATH, '//img[contains(@src, "blob:")]'))
+                            )
 
                             # Retry fetching the blob URL from the opened viewer
-                            blob_image_viewer = self.driver.find_element(By.XPATH, '//img[contains(@src, "blob:")]')
                             blob_url_retry = blob_image_viewer.get_attribute("src")
                             base64_data = self.fetch_blob_with_retries(self.driver, blob_url_retry, retries=3, delay=3)
 
@@ -610,6 +624,7 @@ class WhatsAppScraper:
                                 print(f"Message {idx + 1}: Blob image saved to {temp_file_path} after retry.")
                             else:
                                 print(f"Message {idx + 1}: Blob retry failed.")
+
                         except Exception as e:
                             print(f"Message {idx + 1}: Error handling fallback for blob fetch. Error: {e}")
 
@@ -618,20 +633,20 @@ class WhatsAppScraper:
                             print(f"Message {idx + 1}: Fetching blob failed. Attempting to ensure image is open for fallback.")
                             try:
                                 # Ensure the image is open before taking a screenshot
-                                try:
-                                    # Scroll the image into view
-                                    self.driver.execute_script("arguments[0].scrollIntoView(true);", blob_image)
-                                    print("scrolling")
-                                    time.sleep(1)  # Allow scrolling to complete
+                                # try:
+                                #     # Scroll the image into view
+                                #     self.driver.execute_script("arguments[0].scrollIntoView(true);", blob_image)
+                                #     print("scrolling")
+                                #     time.sleep(1)  # Allow scrolling to complete
                                     
-                                    # Try clicking the image to open the viewer if it's not already open
-                                    if not self.driver.find_elements(By.XPATH, '//img[contains(@src, "blob:")]'):
-                                        WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable((By.XPATH, './/img[contains(@src, "blob:")]')))
-                                        blob_image.click()
-                                        time.sleep(2)  # Allow the viewer to load
+                                #     # Try clicking the image to open the viewer if it's not already open
+                                #     if not self.driver.find_elements(By.XPATH, '//img[contains(@src, "blob:")]'):
+                                #         WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable((By.XPATH, './/img[contains(@src, "blob:")]')))
+                                #         blob_image.click()
+                                #         time.sleep(2)  # Allow the viewer to load
 
-                                except Exception as e:
-                                    print(f"Message {idx + 1}: Could not open image viewer. Error: {e}")
+                                # except Exception as e:
+                                #     print(f"Message {idx + 1}: Could not open image viewer. Error: {e}")
 
                                 # Now take a screenshot of the open viewer
                                 blob_image_viewer = self.driver.find_element(By.XPATH, '//img[contains(@src, "blob:")]')

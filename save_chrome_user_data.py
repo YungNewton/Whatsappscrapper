@@ -1,13 +1,9 @@
 import os
 import shutil
-from selenium import webdriver
+import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-from webdriver_manager.chrome import ChromeDriverManager
-import undetected_chromedriver as uc
 import time
 
 
@@ -16,7 +12,9 @@ class WhatsAppLogin:
         self.user_id = user_id
         self.chrome_user_data_dir = os.path.join(os.getcwd(), chrome_user_data_dir, f"user_{user_id}")
         self.driver = None
-        self.clear_user_data()
+        os.system("pkill -f chrome")
+        os.system("pkill -f chromedriver")
+        # self.clear_user_data()
 
     def clear_user_data(self):
         """
@@ -82,7 +80,6 @@ class WhatsAppLogin:
             self.close_driver()
             print("Browser session ended.")
 
-
     def close_driver(self):
         """
         Close the WebDriver instance.
@@ -94,5 +91,5 @@ class WhatsAppLogin:
 
 # Example usage (if running independently)
 if __name__ == "__main__":
-    whatsapp_login = WhatsAppLogin(user_id = 4)
+    whatsapp_login = WhatsAppLogin(user_id=4)
     whatsapp_login.open_whatsapp_web()

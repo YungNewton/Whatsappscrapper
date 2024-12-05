@@ -1,2 +1,3 @@
-2024/12/01-03:37:12.908 1c07 Creating DB /Users/decagon/quick_campaigns_backend/product_upload_bot/chrome_user_data/user_2/Default/Local Storage/leveldb since it was missing.
-2024/12/01-03:37:13.010 1c07 Reusing MANIFEST /Users/decagon/quick_campaigns_backend/product_upload_bot/chrome_user_data/user_2/Default/Local Storage/leveldb/MANIFEST-000001
+2024/12/05-02:33:39.754 5003 Reusing MANIFEST /Users/decagon/quick_campaigns_backend/product_upload_bot/chrome_user_data/user_2/Default/Local Storage/leveldb/MANIFEST-000001
+2024/12/05-02:33:39.766 5003 Recovering log #3
+2024/12/05-02:33:39.768 5003 Reusing old log /Users/decagon/quick_campaigns_backend/product_upload_bot/chrome_user_data/user_2/Default/Local Storage/leveldb/000003.log 
