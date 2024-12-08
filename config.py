@@ -9,3 +9,6 @@ class Config:
     PERMANENT_SESSION_LIFETIME = timedelta(days=30)  
     SQLALCHEMY_DATABASE_URI = "sqlite:///db.sqlite"
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+
+    # JWT Configuration
+    JWT_ACCESS_TOKEN_EXPIRES = timedelta(days=10)  # Match session lifetime

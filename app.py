@@ -33,7 +33,7 @@ cancel_event = threading.Event()
 scraper_lock = threading.Lock()
 user_scraper_processes = {}
 
-def start_scraper(user_id, user_email, chat_names, channel_username):
+def start_scraper(user_id, user_email, group_mappings):
     """
     Starts a scraper process for a specific user.
     """
@@ -59,11 +59,9 @@ def start_scraper(user_id, user_email, chat_names, channel_username):
 
             # Prepare arguments for the new scraper process
             print(f"Starting a new scraper process for user {user_id}...")
-            chat_names_str = ",".join(chat_names)  # Convert list to comma-separated string
             args = [
                 "python3", "run_scraper.py",
-                "--chatNames", chat_names_str,
-                "--channelUsername", f'"{channel_username}"',
+                "--groupMappings", group_mappings,
                 "--userId", str(user_id),  # Pass user ID to the scraper
                 "--userEmail", user_email  # Pass user email to the scraper
             ]
@@ -178,27 +176,32 @@ def scrape():
     user_email = user.email
     data = request.json
     chat_names = data.get('chatNames', [])
-    channel_username = data.get('channelUsername')
-    # Adjust channel_username for private and public channels
-    if channel_username:
-        if channel_username.replace("/", "").isdigit():  # If it's only numbers, prepend '-100' for private channel IDs
-            channel_username = f"-100{channel_username}"
-        elif not channel_username.startswith('@'):  # Otherwise, ensure it starts with '@' for public usernames
-            channel_username = f"@{channel_username}"
-    try:
-        results = []
-        for chat_name in chat_names:
-            print(f"Processing scrape for chat: {chat_name}")
-            try:
-                # Call the function to start `run_scraper.py` with the email included
-                start_scraper(user_id, user_email, chat_names, channel_username)
-            except Exception as e:
-                print(f"Error scraping chat '{chat_name}': {e}")
+    channel_usernames = data.get('channelUsername', "")
 
-        return jsonify({"message": "success", "results": results}), 200
+    # Ensure channel_usernames is a list
+    if isinstance(channel_usernames, str):
+        channel_usernames = [username.strip() for username in channel_usernames.split(",")]
+
+    # Adjust channel_usernames for private and public channels
+    adjusted_channel_usernames = []
+    for channel_username in channel_usernames:
+        if channel_username.replace("/", "").isdigit():  # If it's only numbers, prepend '-100' for private channel IDs
+            adjusted_channel_usernames.append(f"-100{channel_username}")
+        elif not channel_username.startswith('@'):  # Otherwise, ensure it starts with '@' for public usernames
+            adjusted_channel_usernames.append(f"@{channel_username}")
+        else:
+            adjusted_channel_usernames.append(channel_username)
+
+    try:
+        group_mappings_str = f"{', '.join(chat_names)} : {', '.join(adjusted_channel_usernames)}"
+
+        print(f"Generated group mappings: {group_mappings_str}")
+
+        # Start the scraper process with the group mappings
+        start_scraper(user_id, user_email, group_mappings_str)
+        return jsonify({"message": "Scraping process started successfully."}), 200
     except Exception as e:
         return jsonify({'message': f'Error: {str(e)}'}), 500
-
 
 @app.route('/cancel_scraping', methods=['POST'])
 @jwt_required()
@@ -213,9 +216,28 @@ def cancel_scraping():
 @app.route('/link_whatsapp', methods=['POST'])
 @jwt_required()
 def link_whatsapp():
+    global user_scraper_processes
     try:
         # Get user ID from identity (always a string)
         user_id = get_jwt_identity()
+
+        # Stop any running scraper process for this user
+        with scraper_lock:
+            if user_id in user_scraper_processes:
+                existing_process = user_scraper_processes[user_id]
+                if existing_process.poll() is None:
+                    print(f"Stopping existing scraper process for user {user_id}...")
+                    existing_process.terminate()
+                    try:
+                        existing_process.wait(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        print("Existing scraper process did not terminate gracefully. Forcing termination...")
+                        existing_process.kill()
+                    
+                    os.system("pkill -f chrome")
+                    os.system("pkill -f chromedriver")
+                    print("Existing scraper process stopped.")
+                    del user_scraper_processes[user_id]
 
         # Get additional claims (email in this case)
         claims = get_jwt()  # Fetch all claims
@@ -233,6 +255,7 @@ def link_whatsapp():
     except Exception as e:
         print(f"[ERROR] Failed to process /link_whatsapp: {e}")
         return jsonify({"message": f"Internal server error: {str(e)}"}), 500
+
 
 
 if __name__ == "__main__":

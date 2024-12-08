@@ -58,6 +58,7 @@ class WhatsAppScraper:
         self.cancel_event = cancel_event or threading.Event()
         self.telegram_poster = telegram_poster
         self.headless = headless
+        self.delete_preferences_file()
         self.setup_symlinks()
         self.driver = self.init_driver()
 
@@ -81,6 +82,35 @@ class WhatsAppScraper:
         driver = uc.Chrome(options=options)
         driver.set_window_size(1280, 720)
         return driver
+
+    def clear_tmp_directory(self):
+        tmp_dir = "/tmp"
+        try:
+            # Iterate through all items in /tmp
+            for item in os.listdir(tmp_dir):
+                item_path = os.path.join(tmp_dir, item)
+                # Remove directories and files
+                if os.path.isdir(item_path):
+                    shutil.rmtree(item_path, ignore_errors=True)
+                else:
+                    os.remove(item_path)
+            print(f"Cleared all contents of {tmp_dir}.")
+        except Exception as e:
+            print(f"Failed to clear {tmp_dir}: {e}")
+
+    def delete_preferences_file(self):
+        """
+        Deletes the Preferences file if it exists in the Chrome user data directory.
+        """
+        preferences_path = os.path.join(self.original_user_data_dir, "Default", "Preferences")
+        try:
+            if os.path.exists(preferences_path):
+                os.remove(preferences_path)
+                print(f"Deleted Preferences file at: {preferences_path}")
+            else:
+                print(f"No Preferences file found at: {preferences_path}")
+        except Exception as e:
+            print(f"Error deleting Preferences file: {e}")
 
     def setup_symlinks(self):
         """
@@ -515,13 +545,17 @@ class WhatsAppScraper:
                     except (NoSuchElementException, ValueError) as e:
                         print(f"Message {idx + 1}: Timestamp not found or invalid.")
                         try:
-                            timestamp_element = message.find_element(By.XPATH, './/span[@class="x1c4vz4f x2lah0s"]')
-                            timestamp_text = timestamp_element.text
-                            try:
-                                message_time = datetime.strptime(timestamp_text, "%I:%M %p")  # 12-hour format
-                            except ValueError:
-                                message_time = datetime.strptime(timestamp_text, "%H:%M")  # 24-hour format
-                            print(f"Fallback timestamp successfully extracted.")
+                            aria_label_text = message.get_attribute("aria-label")
+                            if aria_label_text:
+                                # Extract timestamp from aria-label, assuming it's the last part
+                                timestamp_text = aria_label_text.split()[-2] + " " + aria_label_text.split()[-1]  # Example: "3:12 AM"
+                                try:
+                                    message_time = datetime.strptime(timestamp_text, "%I:%M %p")  # 12-hour format
+                                except ValueError:
+                                    message_time = datetime.strptime(timestamp_text, "%H:%M")  # 24-hour format
+                                print(f"Fallback timestamp successfully extracted.")
+                            else:
+                                raise ValueError("aria-label is empty or does not contain timestamp.")
                         except (NoSuchElementException, ValueError) as fallback_error:
                             print(f"Fallback timestamp extraction also failed for message {idx + 1}: {fallback_error}.")
                             message_time = None
@@ -539,11 +573,18 @@ class WhatsAppScraper:
                             break
 
                     # Retrieve the image description
-                    description_element = message.find_elements(By.XPATH, './/img[@alt]')
-                    description = (
-                        description_element[0].get_attribute("alt")
-                        if description_element else " "
-                    )
+                    try:
+                        description_element = message.find_elements(By.XPATH, './/span[@class="_ao3e selectable-text copyable-text"]/span')
+                        if description_element:
+                            description_html = description_element[0].get_attribute("outerHTML")
+                            description = description_element[0].text
+                        else:
+                            print("Description element not found. Defaulting to 'No Description'.")
+                            description = " "
+                    except Exception as e:
+                        print(f"Error extracting description for message {idx + 1}: {e}")
+                        description = "Error Extracting Description"
+
 
                     # Retrieve image elements
                     image_elements = message.find_elements(By.XPATH, './/img')
@@ -600,11 +641,20 @@ class WhatsAppScraper:
                             # Scroll the image into view and wait until it is visible
                             self.driver.execute_script("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", blob_image)
 
-                            # Wait until the image is clickable
-                            WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable((By.XPATH, './/img[contains(@src, "blob:")]')))
+                            # Check for all overlapping blob images in the same container
+                            image_elements = message.find_elements(By.XPATH, './/img[contains(@src, "blob:")]')
 
-                            # Click the image to open the viewer
-                            blob_image.click()
+                            # Attempt to click each image in order
+                            for img_idx, img in enumerate(image_elements):
+                                try:
+                                    print(f"Trying to click blob image {img_idx + 1}/{len(image_elements)}: {img.get_attribute('src')}")
+                                    self.driver.execute_script("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", img)
+                                    WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable(img))
+                                    img.click()
+                                    print(f"Successfully clicked blob image {img_idx + 1}.")
+                                    break
+                                except Exception as e:
+                                    print(f"Blob image {img_idx + 1} click failed. Trying next image. Error: {e}")
 
                             # Wait for the viewer to load the image
                             blob_image_viewer = WebDriverWait(self.driver, 10).until(
