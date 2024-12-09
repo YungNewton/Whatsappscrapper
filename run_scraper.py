@@ -37,7 +37,7 @@ def parse_arguments():
 def parse_group_mappings(mappings_str):
     """
     Parses the group-channel mapping string and returns a dictionary mapping channels to groups.
-    Example input: '(Group1, Group2), Group3 : channel1, channel2'
+    Example input: '{Group1, Group2}, {Group3, Group4} : channel1, channel2'
 
     Args:
         mappings_str (str): The input string containing groups and channels.
@@ -49,16 +49,15 @@ def parse_group_mappings(mappings_str):
     try:
         groups_part, channels_part = mappings_str.split(":")
     except ValueError:
-        raise ValueError("Invalid format. Use '(Group1, Group2), Group3 : channel1, channel2'")
+        raise ValueError("Invalid format. Use '{Group1, Group2}, {Group3} : channel1, channel2'")
     
-    # Extract groups
-    group_pattern = re.compile(r"\(([^)]+)\)|([^,]+)")
+    # Extract groups within curly braces
+    group_pattern = re.compile(r"\{([^}]+)\}")
     groups = []
     for match in group_pattern.findall(groups_part):
-        if match[0]:  # Parenthesized groups
-            groups.append([g.strip() for g in match[0].split(",")])
-        elif match[1]:  # Single group
-            groups.append([match[1].strip()])
+        # Split groups within each set by commas
+        group_list = [g.strip() for g in match.split(",")]
+        groups.append(group_list)
     
     # Extract channels
     channels = [c.strip() for c in channels_part.split(",") if c.strip()]

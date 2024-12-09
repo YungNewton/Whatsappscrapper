@@ -179,7 +179,7 @@ class WhatsAppScraper:
 
     def scrape_chats(self, time_start, time_end):
         """
-        Scrapes messages for all chats in `self.chat_names`, prioritizing archived chats first,
+        Scrapes messages for all chats in self.chat_names, prioritizing archived chats first,
         then normal chats for those not found in archived.
         """
         try:
@@ -195,25 +195,26 @@ class WhatsAppScraper:
                 archived_button.click()
                 print("Navigated to Archived Chats section.")
 
-                # Refresh the `pane-side` element to avoid stale references
+                # Refresh the pane-side element to avoid stale references
                 WebDriverWait(self.driver, 10).until(
                     EC.presence_of_element_located((By.ID, 'pane-side'))
                 )
                 print("Refreshed chat list for archived chats.")
-                
+
 
                 for chat_name in self.chat_names:
                     if chat_name in processed_chats:
                         continue  # Skip already processed chats
                     try:
                         print(f"Attempting to find and scrape archived chat: {chat_name}")
-                        self.open_chat(chat_name)
+                        self.open_chat(chat_name, is_archived=True)  # Pass is_archived=True
                         self.scroll_to_target_date(time_start=time_start, time_end=time_end)
                         self.extract_messages_with_images(time_start, time_end)
                         print(f"Scraping completed for archived chat: {chat_name}")
                         processed_chats.add(chat_name)  # Mark chat as processed
+                        chats_not_found.remove(chat_name)
                     except Exception as e:
-                        print(f"Error scraping archived chat '{chat_name}'")
+                        print(f"Error scraping archived chat '{chat_name}': {e}")
                         chats_not_found.add(chat_name)  # Mark chat as not found
 
                 # Navigate back to the main chat panel
@@ -229,14 +230,13 @@ class WhatsAppScraper:
 
             # Step 2: Scrape Normal Chats
             print("Scraping normal chats...")
-            pane_side = self.driver.find_element(By.ID, 'pane-side')
             while chats_not_found:
                 for chat_name in list(chats_not_found):
                     if chat_name in processed_chats:
                         continue  # Skip already processed chats
                     try:
                         print(f"Attempting to find and scrape normal chat: {chat_name}")
-                        self.open_chat(chat_name)
+                        self.open_chat(chat_name, is_archived=False)  # Pass is_archived=False
                         self.scroll_to_target_date(time_start=time_start, time_end=time_end)
                         self.extract_messages_with_images(time_start, time_end)
                         print(f"Scraping completed for normal chat: {chat_name}")
@@ -244,8 +244,11 @@ class WhatsAppScraper:
                         chats_not_found.remove(chat_name)  # Remove from not found list
                     except Exception as e:
                         print(f"Error scraping normal chat '{chat_name}': {e}")
+                        chats_not_found.remove(chat_name)  # Remove failed chat from the list
 
-                # Scroll pane-side to load more chats
+
+                # Scroll the normal chats pane
+                pane_side = self.driver.find_element(By.ID, 'pane-side')
                 last_scroll_position = self.driver.execute_script("return arguments[0].scrollTop", pane_side)
                 self.driver.execute_script("arguments[0].scrollTop += 200", pane_side)
                 time.sleep(2)  # Allow time for chats to load
@@ -261,11 +264,22 @@ class WhatsAppScraper:
         except Exception as e:
             print(f"Error while scraping chats: {e}")
 
-    def open_chat(self, chat_name):
+    def open_chat(self, chat_name, is_archived=False):
         """
         Open a specific chat by its name, scrolling if necessary.
+        Handles both normal and archived chats.
+        Stops after 10 attempts.
         """
-        pane_side = self.driver.find_element(By.ID, 'pane-side')
+        # Determine the correct container based on the section
+        pane_side_locator = (
+            (By.CSS_SELECTOR, '.x1n2onr6.x1iyjqo2')  # Archived chats container
+            if is_archived
+            else (By.ID, 'pane-side')  # Normal chats container
+        )
+
+        pane_side = WebDriverWait(self.driver, 10).until(
+            EC.presence_of_element_located(pane_side_locator)
+        )
 
         def escape_xpath_string(s):
             if "'" in s and '"' in s:
@@ -275,6 +289,10 @@ class WhatsAppScraper:
             return f"'{s}'"
 
         chat_list_xpath = f"//span[@title={escape_xpath_string(chat_name)}]"
+
+        # Initialize scroll attempt counter
+        scroll_attempts = 0
+        max_scroll_attempts = 10
 
         try:
             # Check if the chat is already visible before scrolling
@@ -286,7 +304,7 @@ class WhatsAppScraper:
         except NoSuchElementException:
             print(f"Chat '{chat_name}' is not immediately visible. Scrolling to find it...")
 
-        while True:
+        while scroll_attempts < max_scroll_attempts:
             try:
                 chat = pane_side.find_element(By.XPATH, chat_list_xpath)
                 ActionChains(self.driver).move_to_element(chat).perform()
@@ -294,16 +312,14 @@ class WhatsAppScraper:
                 chat.click()
                 return
             except NoSuchElementException:
-                print(f"Chat '{chat_name}' not visible. Scrolling further...")
-                self.driver.execute_script("arguments[0].scrollTop += 200", pane_side)
+                scroll_attempts += 1
+                print(f"Chat '{chat_name}' not visible. Scrolling further... (Attempt {scroll_attempts}/{max_scroll_attempts})")
+                self.driver.execute_script("arguments[0].scrollTop += 500", pane_side)
                 time.sleep(2)  # Allow time for chats to load
 
-                # Check if we've reached the bottom of the chat list
-                last_scroll_position = self.driver.execute_script("return arguments[0].scrollTop", pane_side)
-                self.driver.execute_script("arguments[0].scrollTop += 200", pane_side)
-                new_scroll_position = self.driver.execute_script("return arguments[0].scrollTop", pane_side)
-                if last_scroll_position == new_scroll_position:
-                    raise Exception(f"Chat '{chat_name}' not found.")
+        # If we exhaust all attempts and still can't find the chat
+        self.driver.execute_script("arguments[0].scrollTop = 0;", pane_side)
+        raise Exception(f"Chat '{chat_name}' not found after {max_scroll_attempts} scroll attempts.")
 
     def scroll_to_target_date(self, target_date=None, time_start=None, time_end=None):
         """
