@@ -214,7 +214,7 @@ class WhatsAppScraper:
                         processed_chats.add(chat_name)  # Mark chat as processed
                         chats_not_found.remove(chat_name)
                     except Exception as e:
-                        print(f"Error scraping archived chat '{chat_name}': {e}")
+                        print(f"Error scraping archived chat '{chat_name}'")
                         chats_not_found.add(chat_name)  # Mark chat as not found
 
                 # Navigate back to the main chat panel
@@ -234,17 +234,24 @@ class WhatsAppScraper:
                 for chat_name in list(chats_not_found):
                     if chat_name in processed_chats:
                         continue  # Skip already processed chats
-                    try:
-                        print(f"Attempting to find and scrape normal chat: {chat_name}")
-                        self.open_chat(chat_name, is_archived=False)  # Pass is_archived=False
-                        self.scroll_to_target_date(time_start=time_start, time_end=time_end)
-                        self.extract_messages_with_images(time_start, time_end)
-                        print(f"Scraping completed for normal chat: {chat_name}")
-                        processed_chats.add(chat_name)  # Mark chat as processed
-                        chats_not_found.remove(chat_name)  # Remove from not found list
-                    except Exception as e:
-                        print(f"Error scraping normal chat '{chat_name}': {e}")
-                        chats_not_found.remove(chat_name)  # Remove failed chat from the list
+                    retry_count = 0
+                    max_retries = 2
+                    while retry_count < max_retries:
+                        try:
+                            print(f"Attempting to find and scrape normal chat: {chat_name} (Attempt {retry_count + 1}/{max_retries})")
+                            self.open_chat(chat_name, is_archived=False)  # Pass is_archived=False
+                            self.scroll_to_target_date(time_start=time_start, time_end=time_end)
+                            self.extract_messages_with_images(time_start, time_end)
+                            print(f"Scraping completed for normal chat: {chat_name}")
+                            processed_chats.add(chat_name)  # Mark chat as processed
+                            chats_not_found.remove(chat_name)  # Remove from not found list
+                            break  # Exit retry loop on success
+                        except Exception as e:
+                            retry_count += 1
+                            print(f"Error scraping normal chat '{chat_name}': {e}")
+                            if retry_count == max_retries:
+                                print(f"Failed to scrape normal chat '{chat_name}' after {max_retries} attempts.")
+                                chats_not_found.remove(chat_name)
 
 
                 # Scroll the normal chats pane
@@ -288,8 +295,8 @@ class WhatsAppScraper:
                 return f'"{s}"'
             return f"'{s}'"
 
-        chat_list_xpath = f"//span[@title={escape_xpath_string(chat_name)}]"
-
+        chat_list_xpath = f"//span[normalize-space(@title)={escape_xpath_string(chat_name)}]"
+        
         # Initialize scroll attempt counter
         scroll_attempts = 0
         max_scroll_attempts = 10
@@ -297,7 +304,7 @@ class WhatsAppScraper:
         try:
             # Check if the chat is already visible before scrolling
             chat = pane_side.find_element(By.XPATH, chat_list_xpath)
-            ActionChains(self.driver).move_to_element(chat).perform()
+            self.driver.execute_script("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", chat)
             print(f"Chat '{chat_name}' is already visible. Clicking on it.")
             chat.click()
             return
@@ -306,6 +313,10 @@ class WhatsAppScraper:
 
         while scroll_attempts < max_scroll_attempts:
             try:
+
+                pane_side = WebDriverWait(self.driver, 10).until(
+                    EC.presence_of_element_located(pane_side_locator)
+                )
                 chat = pane_side.find_element(By.XPATH, chat_list_xpath)
                 ActionChains(self.driver).move_to_element(chat).perform()
                 print(f"Chat '{chat_name}' is now visible. Clicking on it.")
@@ -346,104 +357,110 @@ class WhatsAppScraper:
             previous_height = None
 
             while True:
-                # Refresh message container to avoid stale element references
-                message_container = self.refresh_element(self.driver, message_container_locator)
-
-                # Check for and click the "load older messages" button, if present
                 try:
-                    load_more_button = self.driver.find_element(By.XPATH, '//button[contains(@class, "x14m1o6m x126m2zf")]')
-                    load_more_button.click()
-                    print("Clicked to load older messages.")
-                    time.sleep(2)
-                except NoSuchElementException:
-                    pass
-
-                # Perform scrolling to load more messages
-                for _ in range(12):
+                    # Refresh message container to avoid stale element references
+                    message_container = WebDriverWait(self.driver, 10).until(
+                        EC.presence_of_element_located(message_container_locator)
+                    )
+                    # Check for and click the "load older messages" button, if present
                     try:
-                        message_container.send_keys(Keys.PAGE_UP)
-                        time.sleep(1)
-                    except StaleElementReferenceException:
-                        print("Container went stale during scroll. Refreshing...")
-                        message_container = self.refresh_element(self.driver, message_container_locator)
+                        load_more_button = self.driver.find_element(By.XPATH, '//button[contains(@class, "x14m1o6m x126m2zf")]')
+                        load_more_button.click()
+                        print("Clicked to load older messages.")
+                        time.sleep(2)
+                    except NoSuchElementException:
+                        pass
 
-                # Process date elements to locate the target date
-                date_elements = message_container.find_elements(By.XPATH, '//div[@class="_amk4 _amkb"]/span[@class="_ao3e"]')
-                for date_element in date_elements:
-                    try:
-                        date_text = date_element.text
-                        message_date = self.parse_date_text(date_text)
-
-                        if message_date:
-                            # Stop scrolling if we've reached the target date
-                            if target_date and message_date < target_date:
-                                print("Reached messages older than the target date.")
-                                return
-                    except StaleElementReferenceException:
-                        print("Date element went stale. Skipping...")
-                    except ValueError:
-                        print("Error parsing date:", date_element.text)
-
-                # Check and process image messages for time range
-                image_messages = message_container.find_elements(
-                    By.XPATH,
-                    '//div[contains(@class, "message-in") or contains(@class, "message-out")]'
-                    '//div[contains(@role, "button") and contains(@aria-label, "Open picture")]'
-                    '/ancestor::div[contains(@class, "message-in") or contains(@class, "message-out")]'
-                )
-                for message in image_messages:
-                    try:
-                        # Extract timestamp
+                    # Perform scrolling to load more messages
+                    for _ in range(12):
                         try:
-                            timestamp_element = message.find_element(By.XPATH, './/div[contains(@class, "copyable-text")]')
-                            raw_timestamp_text = timestamp_element.get_attribute("data-pre-plain-text").rstrip("]").strip()
-                        except NoSuchElementException:
-                            raw_timestamp_text = ""
-                        time_text = raw_timestamp_text.split(",")[0].strip()
-                        time_text = time_text.lstrip("[").strip()
-                        time_text = "".join(time_text.split())  # Remove all whitespace characters
+                            message_container.send_keys(Keys.PAGE_UP)
+                            time.sleep(1)
+                        except StaleElementReferenceException:
+                            print("Container went stale during scroll. Refreshing...")
+                            message_container = self.refresh_element(self.driver, message_container_locator)
 
-                        # Skip processing if time_text is empty
-                        if not time_text:
-                            continue
-
-                        # Parse the time into a datetime object
+                    # Process date elements to locate the target date
+                    date_elements = message_container.find_elements(By.XPATH, '//div[@class="_amk4 _amkb"]/span[@class="_ao3e"]')
+                    for date_element in date_elements:
                         try:
-                            # Attempt to parse the time in both 12-hour and 24-hour formats
+                            date_text = date_element.text
+                            message_date = self.parse_date_text(date_text)
+
+                            if message_date:
+                                # Stop scrolling if we've reached the target date
+                                if target_date and message_date < target_date:
+                                    print("Reached messages older than the target date.")
+                                    return
+                        except StaleElementReferenceException:
+                            print("Date element went stale. Skipping...")
+                        except ValueError:
+                            print("Error parsing date:", date_element.text)
+
+                    # Check and process image messages for time range
+                    image_messages = message_container.find_elements(
+                        By.XPATH,
+                        '//div[contains(@class, "message-in") or contains(@class, "message-out")]'
+                        '//div[contains(@role, "button") and contains(@aria-label, "Open picture")]'
+                        '/ancestor::div[contains(@class, "message-in") or contains(@class, "message-out")]'
+                    )
+                    for message in image_messages:
+                        try:
+                            # Extract timestamp
                             try:
-                                parsed_time = datetime.strptime(time_text, "%I:%M%p").time()  # 12-hour format
-                            except ValueError:
-                                parsed_time = datetime.strptime(time_text, "%H:%M").time()  # 24-hour format
-                            
-                            # Combine the parsed time with today's date
-                            message_time = datetime.combine(datetime.today(), parsed_time)
+                                timestamp_element = message.find_element(By.XPATH, './/div[contains(@class, "copyable-text")]')
+                                raw_timestamp_text = timestamp_element.get_attribute("data-pre-plain-text").rstrip("]").strip()
+                            except NoSuchElementException:
+                                raw_timestamp_text = ""
+                            time_text = raw_timestamp_text.split(",")[0].strip()
+                            time_text = time_text.lstrip("[").strip()
+                            time_text = "".join(time_text.split())  # Remove all whitespace characters
 
-                            # Adjust message time for overnight ranges
-                            if range_crosses_midnight and message_time < time_start_dt:
-                                message_time += timedelta(days=1)
+                            # Skip processing if time_text is empty
+                            if not time_text:
+                                continue
 
-                        except ValueError as ve:
-                            print(f"ValueError: Could not parse timestamp. Cleaned: '{time_text}'. Exception: {ve}")
-                            continue
+                            # Parse the time into a datetime object
+                            try:
+                                # Attempt to parse the time in both 12-hour and 24-hour formats
+                                try:
+                                    parsed_time = datetime.strptime(time_text, "%I:%M%p").time()  # 12-hour format
+                                except ValueError:
+                                    parsed_time = datetime.strptime(time_text, "%H:%M").time()  # 24-hour format
+                                
+                                # Combine the parsed time with today's date
+                                message_time = datetime.combine(datetime.today(), parsed_time)
 
-                        # Stop scrolling if the message is outside the time range
-                        if time_start_dt and message_time < time_start_dt:
-                            print(f"Reached image message older than the start time: {time_start_dt.strftime('%I:%M %p')}.")
-                            return
-                        if time_end_dt_adjusted and message_time > time_end_dt_adjusted:
-                            print(f"Reached image message newer than the end time: {time_end_dt_adjusted.strftime('%I:%M %p')}.")
-                            return
+                                # Adjust message time for overnight ranges
+                                if range_crosses_midnight and message_time < time_start_dt:
+                                    message_time += timedelta(days=1)
 
-                    except (StaleElementReferenceException, ValueError, AttributeError, NoSuchElementException):
-                        print("Error processing image message, skipping.")
+                            except ValueError as ve:
+                                print(f"ValueError: Could not parse timestamp. Cleaned: '{time_text}'. Exception: {ve}")
+                                continue
 
-                # Check if we've reached the top of the chat by comparing scroll height
-                current_height = self.driver.execute_script("return arguments[0].scrollHeight;", message_container)
-                if previous_height == current_height:
-                    print("Reached the top of the chat.")
-                    break
-                previous_height = current_height
+                            # Stop scrolling if the message is outside the time range
+                            if time_start_dt and message_time < time_start_dt:
+                                print(f"Reached image message older than the start time: {time_start_dt.strftime('%I:%M %p')}.")
+                                return
+                            if time_end_dt_adjusted and message_time > time_end_dt_adjusted:
+                                print(f"Reached image message newer than the end time: {time_end_dt_adjusted.strftime('%I:%M %p')}.")
+                                return
 
+                        except (StaleElementReferenceException, ValueError, AttributeError, NoSuchElementException):
+                            print("Error processing image message, skipping.")
+
+                    # Check if we've reached the top of the chat by comparing scroll height
+                    current_height = self.driver.execute_script("return arguments[0].scrollHeight;", message_container)
+                    if previous_height == current_height:
+                        print("Reached the top of the chat.")
+                        break
+                    previous_height = current_height
+                except StaleElementReferenceException:
+                    print("Stale element detected during scrolling. Retrying...")
+                    message_container = WebDriverWait(self.driver, 10).until(
+                        EC.presence_of_element_located(message_container_locator)
+                    )
         except Exception as e:
             print(f"Error during scrolling: {e}")
 
@@ -571,10 +588,26 @@ class WhatsAppScraper:
                                     message_time = datetime.strptime(timestamp_text, "%H:%M")  # 24-hour format
                                 print(f"Fallback timestamp successfully extracted.")
                             else:
-                                raise ValueError("aria-label is empty or does not contain timestamp.")
+                                # New fallback for span-based timestamp
+                                timestamp_element = message.find_element(By.XPATH, './/span[contains(@class, "x1rg5ohu")]')
+                                timestamp_text = timestamp_element.text
+                                try:
+                                    message_time = datetime.strptime(timestamp_text, "%I:%M %p")
+                                except ValueError:
+                                    message_time = datetime.strptime(timestamp_text, "%H:%M")
+                                print(f"Fallback timestamp successfully extracted from span.")
                         except (NoSuchElementException, ValueError) as fallback_error:
-                            print(f"Fallback timestamp extraction also failed for message {idx + 1}: {fallback_error}.")
-                            message_time = None
+                            try:
+                                timestamp_element = message.find_element(By.XPATH, './/span[contains(@class, "x1rg5ohu") and contains(@class, "x16dsc37")]')                                
+                                timestamp_text = timestamp_element.text
+                                try:
+                                    message_time = datetime.strptime(timestamp_text, "%I:%M %p")  # 12-hour format
+                                except ValueError:
+                                    message_time = datetime.strptime(timestamp_text, "%H:%M")  # 24-hour format
+                                print(f"Timestamp inherited from group context: {timestamp_text}")
+                            except (NoSuchElementException, ValueError) as fallback_error:
+                                print(f"Final fallback timestamp extraction also failed for message {idx + 1}: {fallback_error}.")
+                                message_time = None
 
                     # Adjust for overnight ranges
                     time_end_dt_adjusted = time_end_dt + timedelta(days=1) if range_crosses_midnight else time_end_dt
@@ -590,16 +623,17 @@ class WhatsAppScraper:
 
                     # Retrieve the image description
                     try:
-                        description_element = message.find_elements(By.XPATH, './/span[@class="_ao3e selectable-text copyable-text"]/span')
+                        description_element = message.find_elements(By.XPATH, './/span[@class="_ao3e selectable-text copyable-text"]//span')
                         if description_element:
-                            description_html = description_element[0].get_attribute("outerHTML")
-                            description = description_element[0].text
+                            # Concatenate text from all sibling spans with line breaks
+                            description = "\n".join([elem.text for elem in description_element if elem.text.strip()])
                         else:
                             print("Description element not found. Defaulting to 'No Description'.")
-                            description = " "
+                            description = "No Description"
                     except Exception as e:
                         print(f"Error extracting description for message {idx + 1}: {e}")
                         description = "Error Extracting Description"
+
 
 
                     # Retrieve image elements
@@ -642,13 +676,45 @@ class WhatsAppScraper:
                         image_src = base64_image.get_attribute("src")
                         print(f"Message {idx + 1}: Base64 image src - {image_src}")
                         try:
-                            base64_content = image_src.split(",")[1]
-                            temp_file_path = os.path.join(temp_dir, f"extracted_image_{idx + 1}.png")
-                            with open(temp_file_path, "wb") as file:
-                                file.write(base64.b64decode(base64_content))
-                            print(f"Message {idx + 1}: Base64 image saved to {temp_file_path}.")
+                            # Scroll the image into view and wait until it is visible
+                            self.driver.execute_script("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", blob_image)
+
+                            # Check for all overlapping blob images in the same container
+                            image_elements = message.find_elements(By.XPATH, './/img[contains(@src, "blob:")]')
+
+                            # Attempt to click each image in order
+                            for img_idx, img in enumerate(image_elements):
+                                try:
+                                    print(f"Trying to click blob image {img_idx + 1}/{len(image_elements)}: {img.get_attribute('src')}")
+                                    self.driver.execute_script("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", img)
+                                    WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable(img))
+                                    img.click()
+                                    print(f"Successfully clicked blob image {img_idx + 1}.")
+                                    break
+                                except Exception as e:
+                                    print(f"Blob image {img_idx + 1} click failed. Trying next image. Error: {e}")
+
+                            # Wait for the viewer to load the image
+                            blob_image_viewer = WebDriverWait(self.driver, 10).until(
+                                EC.presence_of_element_located((By.XPATH, '//img[contains(@src, "blob:")]'))
+                            )
+
+                            # Retry fetching the blob URL from the opened viewer
+                            blob_url_retry = blob_image_viewer.get_attribute("src")
+                            base64_data = self.fetch_blob_with_retries(self.driver, blob_url_retry, retries=3, delay=3)
+
+                            if base64_data:
+                                # Save the blob image after retry
+                                base64_content = base64_data.split(",")[1]
+                                temp_file_path = os.path.join(temp_dir, f"retried_image_{idx + 1}.png")
+                                with open(temp_file_path, "wb") as file:
+                                    file.write(base64.b64decode(base64_content))
+                                print(f"Message {idx + 1}: Blob image saved to {temp_file_path} after retry.")
+                            else:
+                                print(f"Message {idx + 1}: Blob retry failed.")
+
                         except Exception as e:
-                            print(f"Message {idx + 1}: Error processing base64 image. Error: {e}")
+                            print(f"Message {idx + 1}: Error handling fallback for blob fetch. Error: {e}")
 
                     # Fallback to screenshot
                     if not temp_file_path:
