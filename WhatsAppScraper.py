@@ -256,7 +256,7 @@ class WhatsAppScraper:
                                 print(f"Skipping chat '{chat_name}' as it does not contain today's messages.")
                                 processed_chats.add(chat_name)  # Mark chat as processed
                                 chats_not_found.remove(chat_name)
-                                continue  # Skip this chat
+                                break  # Skip this chat
                             self.extract_messages_with_images(time_start, time_end)
                             print(f"Scraping completed for normal chat: {chat_name}")
                             processed_chats.add(chat_name)  # Mark chat as processed
