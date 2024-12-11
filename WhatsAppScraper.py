@@ -214,8 +214,9 @@ class WhatsAppScraper:
                             time_end=time_end
                         ):
                             print(f"Skipping chat '{chat_name}' as it does not contain today's messages.")
+                            processed_chats.add(chat_name)  # Mark chat as processed
                             chats_not_found.remove(chat_name)
-                            break  # Skip this chat
+                            continue  # Skip this chat
                         self.extract_messages_with_images(time_start, time_end)
                         print(f"Scraping completed for archived chat: {chat_name}")
                         processed_chats.add(chat_name)  # Mark chat as processed
@@ -253,8 +254,9 @@ class WhatsAppScraper:
                                 time_end=time_end
                             ):
                                 print(f"Skipping chat '{chat_name}' as it does not contain today's messages.")
+                                processed_chats.add(chat_name)  # Mark chat as processed
                                 chats_not_found.remove(chat_name)
-                                break  # Skip this chat
+                                continue  # Skip this chat
                             self.extract_messages_with_images(time_start, time_end)
                             print(f"Scraping completed for normal chat: {chat_name}")
                             processed_chats.add(chat_name)  # Mark chat as processed
@@ -289,7 +291,7 @@ class WhatsAppScraper:
         """
         Open a specific chat by its name, scrolling if necessary.
         Handles both normal and archived chats.
-        Retries scrolling back to the top after 10 unsuccessful attempts.
+        Stops after 10 attempts.
         """
         # Determine the correct container based on the section
         pane_side_locator = (
@@ -310,10 +312,11 @@ class WhatsAppScraper:
             return f"'{s}'"
 
         chat_list_xpath = f"//span[normalize-space(@title)={escape_xpath_string(chat_name)}]"
+        
+        # Initialize scroll attempt counter
+        scroll_attempts = 0
+        max_scroll_attempts = 10
 
-        max_scroll_attempts = 10  # Max attempts per scrolling cycle
-        max_retry_cycles = 2      # Number of retries to restart from the top
-        retry_cycles = 0
         try:
             # Check if the chat is already visible before scrolling
             chat = pane_side.find_element(By.XPATH, chat_list_xpath)
@@ -324,34 +327,26 @@ class WhatsAppScraper:
         except NoSuchElementException:
             print(f"Chat '{chat_name}' is not immediately visible. Scrolling to find it...")
 
-        while retry_cycles < max_retry_cycles:
-            scroll_attempts = 0
+        while scroll_attempts < max_scroll_attempts:
+            try:
 
-            while scroll_attempts < max_scroll_attempts:
-                try:
-                    # Refresh the pane to avoid stale elements
-                    pane_side = WebDriverWait(self.driver, 10).until(
-                        EC.presence_of_element_located(pane_side_locator)
-                    )
-                    chat = pane_side.find_element(By.XPATH, chat_list_xpath)
-                    ActionChains(self.driver).move_to_element(chat).perform()
-                    print(f"Chat '{chat_name}' is now visible. Clicking on it.")
-                    chat.click()
-                    return  # Exit function once chat is found and clicked
-                except NoSuchElementException:
-                    scroll_attempts += 1
-                    print(f"Chat '{chat_name}' not visible. Scrolling further... (Attempt {scroll_attempts}/{max_scroll_attempts})")
-                    self.driver.execute_script("arguments[0].scrollTop += 500", pane_side)
-                    time.sleep(2)  # Allow time for chats to load
+                pane_side = WebDriverWait(self.driver, 10).until(
+                    EC.presence_of_element_located(pane_side_locator)
+                )
+                chat = pane_side.find_element(By.XPATH, chat_list_xpath)
+                ActionChains(self.driver).move_to_element(chat).perform()
+                print(f"Chat '{chat_name}' is now visible. Clicking on it.")
+                chat.click()
+                return
+            except NoSuchElementException:
+                scroll_attempts += 1
+                print(f"Chat '{chat_name}' not visible. Scrolling further... (Attempt {scroll_attempts}/{max_scroll_attempts})")
+                self.driver.execute_script("arguments[0].scrollTop += 500", pane_side)
+                time.sleep(2)  # Allow time for chats to load
 
-            # If max attempts reached, reset scroll position to the top and retry
-            retry_cycles += 1
-            print(f"Retrying scroll for chat '{chat_name}' from the top (Cycle {retry_cycles}/{max_retry_cycles}).")
-            self.driver.execute_script("arguments[0].scrollTop = 0;", pane_side)
-            time.sleep(2)  # Allow time for chats to load at the top
-
-        # If we exhaust all retries and still can't find the chat
-        raise Exception(f"Chat '{chat_name}' not found after {max_retry_cycles} retries of {max_scroll_attempts} scroll attempts each.")
+        # If we exhaust all attempts and still can't find the chat
+        self.driver.execute_script("arguments[0].scrollTop = 0;", pane_side)
+        raise Exception(f"Chat '{chat_name}' not found after {max_scroll_attempts} scroll attempts.")
 
     def scroll_to_target_date(self, target_date=None, time_start=None, time_end=None):
         """
@@ -385,11 +380,15 @@ class WhatsAppScraper:
                     )
                     # Check for and click the "load older messages" button, if present
                     try:
-                        load_more_button = self.driver.find_element(By.XPATH, '//button[contains(@class, "x14m1o6m x126m2zf")]')
-                        load_more_button.click()
+                        load_more_button_locator = (By.XPATH, '//button[contains(@class, "x14m1o6m x126m2zf")]')
+                        load_more_button = WebDriverWait(self.driver, 2).until(
+                            EC.element_to_be_clickable(load_more_button_locator)
+                        )
+                        self.driver.execute_script("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", load_more_button)
+                        self.driver.execute_script("arguments[0].click();", load_more_button)
                         print("Clicked to load older messages.")
                         time.sleep(2)
-                    except NoSuchElementException:
+                    except TimeoutException:
                         pass
 
                     # Perform scrolling to load more messages
