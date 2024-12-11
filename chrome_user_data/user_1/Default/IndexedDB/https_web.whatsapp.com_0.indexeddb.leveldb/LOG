@@ -1,17 +1,9 @@
-2024/12/09-07:51:18.966 9207 Reusing MANIFEST /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmp7pz6dk6a/Default/IndexedDB/https_web.whatsapp.com_0.indexeddb.leveldb/MANIFEST-000001
-2024/12/09-07:51:18.967 9207 Recovering log #334
-2024/12/09-07:51:19.061 9207 Reusing old log /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmp7pz6dk6a/Default/IndexedDB/https_web.whatsapp.com_0.indexeddb.leveldb/000334.log 
-2024/12/09-07:51:20.529 15003 Level-0 table #341: started
-2024/12/09-07:51:20.580 15003 Level-0 table #341: 728538 bytes OK
-2024/12/09-07:51:20.653 15003 Delete type=0 #334
-2024/12/09-07:51:20.678 9207 Manual compaction at level-0 from '\x00N\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00O\x00\x00\x00' @ 0 : 0; will stop at (end)
-2024/12/09-07:51:20.802 15003 Compacting 1@1 + 3@2 files
-2024/12/09-07:51:21.433 15003 Generated table #342@1: 66113 keys, 2225576 bytes
-2024/12/09-07:51:21.694 15003 Generated table #343@1: 12689 keys, 2178178 bytes
-2024/12/09-07:51:21.866 15003 Generated table #344@1: 33628 keys, 1433861 bytes
-2024/12/09-07:51:21.866 15003 Compacted 1@1 + 3@2 files => 5837615 bytes
-2024/12/09-07:51:21.932 15003 compacted to: files[ 0 0 3 0 0 0 0 ]
-2024/12/09-07:51:21.933 15003 Delete type=2 #338
-2024/12/09-07:51:21.934 15003 Delete type=2 #341
-2024/12/09-07:51:21.934 15003 Delete type=2 #336
-2024/12/09-07:51:21.934 15003 Delete type=2 #337
+2024/12/10-13:15:31.767 ad03 Reusing MANIFEST /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmp8_q_pqi6/Default/IndexedDB/https_web.whatsapp.com_0.indexeddb.leveldb/MANIFEST-000001
+2024/12/10-13:15:31.768 ad03 Recovering log #374
+2024/12/10-13:15:31.782 ad03 Reusing old log /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmp8_q_pqi6/Default/IndexedDB/https_web.whatsapp.com_0.indexeddb.leveldb/000374.log 
+2024/12/10-13:15:35.957 6d03 Level-0 table #381: started
+2024/12/10-13:15:35.996 6d03 Level-0 table #381: 185039 bytes OK
+2024/12/10-13:15:36.126 6d03 Delete type=0 #374
+2024/12/10-13:15:36.141 14f03 Manual compaction at level-0 from '\x00S\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00T\x00\x00\x00' @ 0 : 0; will stop at (end)
+2024/12/10-13:15:36.216 14f03 Compacting 1@1 + 3@2 files
+2024/12/10-13:15:36.855 14f03 compacted to: files[ 0 1 3 0 0 0 0 ]

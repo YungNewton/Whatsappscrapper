@@ -1,3 +1,6 @@
-2024/12/09-07:50:01.670 ad03 Reusing MANIFEST /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmpzf5x2b2o/Default/shared_proto_db/MANIFEST-000001
-2024/12/09-07:50:01.672 ad03 Recovering log #13
-2024/12/09-07:50:01.676 ad03 Reusing old log /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmpzf5x2b2o/Default/shared_proto_db/000013.log 
+2024/12/10-13:11:50.543 6a07 Reusing MANIFEST /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmprf8znn8n/Default/shared_proto_db/MANIFEST-000001
+2024/12/10-13:11:50.545 6a07 Recovering log #13
+2024/12/10-13:11:50.616 6a07 Reusing old log /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmprf8znn8n/Default/shared_proto_db/000013.log 
+2024/12/10-13:12:19.257 9303 Level-0 table #17: started
+2024/12/10-13:12:19.285 9303 Level-0 table #17: 123373 bytes OK
+2024/12/10-13:12:19.386 9303 Delete type=0 #13

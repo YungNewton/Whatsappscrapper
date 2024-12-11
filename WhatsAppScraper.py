@@ -208,7 +208,13 @@ class WhatsAppScraper:
                     try:
                         print(f"Attempting to find and scrape archived chat: {chat_name}")
                         self.open_chat(chat_name, is_archived=True)  # Pass is_archived=True
-                        self.scroll_to_target_date(time_start=time_start, time_end=time_end)
+                        if not self.scroll_to_target_date(
+                            target_date=datetime.today().strftime("%m/%d/%Y"),
+                            time_start=time_start,
+                            time_end=time_end
+                        ):
+                            print(f"Skipping chat '{chat_name}' as it does not contain today's messages.")
+                            continue  # Skip this chat
                         self.extract_messages_with_images(time_start, time_end)
                         print(f"Scraping completed for archived chat: {chat_name}")
                         processed_chats.add(chat_name)  # Mark chat as processed
@@ -240,7 +246,13 @@ class WhatsAppScraper:
                         try:
                             print(f"Attempting to find and scrape normal chat: {chat_name} (Attempt {retry_count + 1}/{max_retries})")
                             self.open_chat(chat_name, is_archived=False)  # Pass is_archived=False
-                            self.scroll_to_target_date(time_start=time_start, time_end=time_end)
+                            if not self.scroll_to_target_date(
+                                target_date=datetime.today().strftime("%m/%d/%Y"),
+                                time_start=time_start,
+                                time_end=time_end
+                            ):
+                                print(f"Skipping chat '{chat_name}' as it does not contain today's messages.")
+                                continue  # Skip this chat
                             self.extract_messages_with_images(time_start, time_end)
                             print(f"Scraping completed for normal chat: {chat_name}")
                             processed_chats.add(chat_name)  # Mark chat as processed
@@ -388,6 +400,11 @@ class WhatsAppScraper:
                             message_date = self.parse_date_text(date_text)
 
                             if message_date:
+                                # Check if the first date is not today's date
+                                if message_date != datetime.today().date():
+                                    print(f"First message date {message_date} is not today's date. Skipping scraping.")
+                                    return False  # Indicate that this chat should be skipped
+
                                 # Stop scrolling if we've reached the target date
                                 if target_date and message_date < target_date:
                                     print("Reached messages older than the target date.")
@@ -597,17 +614,8 @@ class WhatsAppScraper:
                                     message_time = datetime.strptime(timestamp_text, "%H:%M")
                                 print(f"Fallback timestamp successfully extracted from span.")
                         except (NoSuchElementException, ValueError) as fallback_error:
-                            try:
-                                timestamp_element = message.find_element(By.XPATH, './/span[contains(@class, "x1rg5ohu") and contains(@class, "x16dsc37")]')                                
-                                timestamp_text = timestamp_element.text
-                                try:
-                                    message_time = datetime.strptime(timestamp_text, "%I:%M %p")  # 12-hour format
-                                except ValueError:
-                                    message_time = datetime.strptime(timestamp_text, "%H:%M")  # 24-hour format
-                                print(f"Timestamp inherited from group context: {timestamp_text}")
-                            except (NoSuchElementException, ValueError) as fallback_error:
-                                print(f"Final fallback timestamp extraction also failed for message {idx + 1}: {fallback_error}.")
-                                message_time = None
+                            print(f"Final fallback timestamp extraction also failed for message {idx + 1}: {fallback_error}.")
+                            message_time = None
 
                     # Adjust for overnight ranges
                     time_end_dt_adjusted = time_end_dt + timedelta(days=1) if range_crosses_midnight else time_end_dt
@@ -618,23 +626,19 @@ class WhatsAppScraper:
                             print(f"Message {idx + 1} stopped: Time {message_time.strftime('%I:%M %p')} is before the start range.")
                             break
                         if time_end_dt_adjusted and message_time > time_end_dt_adjusted:
-                            print(f"Message {idx + 1} stopped: Time {message_time.strftime('%I:%M %p')} exceeds the end range.")
-                            break
+                            print(f"Skipping: Message {idx + 1} is newer than the end time: {message_time.strftime('%I:%M %p')}.")
+                            continue
 
                     # Retrieve the image description
                     try:
-                        description_element = message.find_elements(By.XPATH, './/span[@class="_ao3e selectable-text copyable-text"]//span')
-                        if description_element:
-                            # Concatenate text from all sibling spans with line breaks
-                            description = "\n".join([elem.text for elem in description_element if elem.text.strip()])
-                        else:
-                            print("Description element not found. Defaulting to 'No Description'.")
-                            description = "No Description"
+                        description_element = message.find_elements(By.XPATH, './/img[@alt]')
+                        description = (
+                            description_element[1].get_attribute("alt")
+                            if description_element else " "
+                        )
                     except Exception as e:
                         print(f"Error extracting description for message {idx + 1}: {e}")
-                        description = "Error Extracting Description"
-
-
+                        description = " "
 
                     # Retrieve image elements
                     image_elements = message.find_elements(By.XPATH, './/img')
@@ -647,12 +651,6 @@ class WhatsAppScraper:
                     if blob_image:
                         blob_url = blob_image.get_attribute("src")
                         print(f"Blob URL: {blob_url}")
-
-                        # # Skip duplicate blob URLs
-                        # if blob_url in processed_blob_urls:
-                        #     print(f"Message {idx + 1}: Duplicate Blob URL detected. Skipping...")
-                        #     continue
-                        # processed_blob_urls.add(blob_url)
 
                         if not blob_url or not blob_url.startswith("blob:"):
                             print(f"Message {idx + 1}: Invalid blob URL, skipping.")
@@ -863,8 +861,8 @@ class WhatsAppScraper:
                             print(f"Message {idx + 1} stopped: Time {message_time.strftime('%I:%M %p')} is before the start range.")
                             break  # Stop processing entirely when the message is too old
                         if time_end_dt and message_time > time_end_dt:
-                            print(f"Message {idx + 1} stopped: Time {message_time.strftime('%I:%M %p')} exceeds the end range.")
-                            break
+                            print(f"Skipping: Message {idx + 1} is newer than the end time: {message_time.strftime('%I:%M %p')}.")
+                            continue
 
                     # Extract description (if available)
                     description_element = message.find_elements(By.XPATH, './/span[@class="_ao3e selectable-text copyable-text"]/span')
@@ -920,16 +918,6 @@ class WhatsAppScraper:
             print(f"Screenshot saved at {screenshot_path}")
         except Exception as e:
             print(f"Failed to take screenshot: {e}")
-
-# Usage example
-# if __name__ == "__main__":
-#     scraper = WhatsAppScraper(chat_name="Paul", date_limit="11/01/2024", scrape_all=False, new_session=True)
-#     scraper.login()
-#     # scraper.open_chat()
-#     # scraper.scroll_to_target_date()
-#     # scraper.extract_messages_with_images()
-#     # scraper.extract_messages_with_videos()
-#     scraper.close()
 
 if __name__ == "__main__":
     # Define test inputs

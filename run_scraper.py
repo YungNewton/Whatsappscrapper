@@ -15,6 +15,8 @@ BOT_TOKEN = "8027226040:AAHwIVqA-bB-F7g01djdw93Ti4SuSk-mM4o"  # Replace with you
 stop_event = threading.Event()
 scraper_thread = None  # Declare and initialize here globally
 
+# Global variable to track the last end time
+last_end_time = None
 
 def parse_arguments():
     """
@@ -77,12 +79,24 @@ def scrape_last_10_minutes():
     """
     Runs the WhatsApp scraper to scrape messages from the last 10 minutes for all mapped channels and groups.
     """
-    current_time = datetime.now()
-    start_time = current_time - timedelta(minutes=15)
+    global last_end_time
+
+    # Initialize last_end_time if not already set
+    if last_end_time is None:
+        last_end_time = datetime.now() - timedelta(minutes=15)
+
+    # Calculate start and end times for the scraping session
+    start_time = last_end_time + timedelta(minutes=1)
+    end_time = last_end_time + timedelta(minutes=15)
+
+    # Format times for scraping
     time_start = start_time.strftime("%I:%M %p")
-    time_end = current_time.strftime("%I:%M %p")
+    time_end = end_time.strftime("%I:%M %p")
 
     print(f"Starting scrape for messages between {time_start} and {time_end}")
+
+    # Update last_end_time to the new end_time
+    last_end_time = end_time
 
     for channel, groups in GROUP_CHANNEL_MAPPING.items():
         print(f"Processing groups {groups} for channel {channel}")
@@ -108,14 +122,28 @@ def scrape_last_10_minutes():
 
 def run_scraper_periodically():
     """
-    Runs the scraper every 10 minutes in a loop.
+    Runs the scraper periodically based on last_end_time + 1 minute.
     """
+    global last_end_time
+
     while not stop_event.is_set():
+        if last_end_time is None:
+            # Initialize the last_end_time if it's the first run
+            last_end_time = datetime.now() - timedelta(minutes=15)
+
+        # Calculate the time to wait until the next scrape
+        next_start_time = last_end_time + timedelta(minutes=1)
+        current_time = datetime.now()
+
+        # Wait only if the current time is earlier than the next start time
+        wait_time = (next_start_time - current_time).total_seconds()
+        if wait_time > 0:
+            print(f"Waiting {wait_time:.2f} seconds until the next scrape...")
+            if stop_event.wait(wait_time):
+                break  # Exit if stop_event is set
+
         print(f"Starting scraper at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         scrape_last_10_minutes()
-        print("Waiting to begin the next run...")
-        if not stop_event.wait(900):  # Wait 15 minutes or exit if stopped
-            continue
 
 
 if __name__ == "__main__":

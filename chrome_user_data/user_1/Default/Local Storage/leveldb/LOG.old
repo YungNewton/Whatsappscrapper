@@ -1,5 +1,3 @@
-2024/12/09-07:50:00.152 5207 Reusing MANIFEST /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmpzf5x2b2o/Default/Local Storage/leveldb/MANIFEST-000001
-2024/12/09-07:50:00.174 5207 Recovering log #44
-2024/12/09-07:50:00.176 5207 Level-0 table #46: started
-2024/12/09-07:50:00.219 5207 Level-0 table #46: 16120 bytes OK
-2024/12/09-07:50:00.312 5207 Delete type=0 #44
+2024/12/10-13:11:48.333 2d03 Reusing MANIFEST /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmprf8znn8n/Default/Local Storage/leveldb/MANIFEST-000001
+2024/12/10-13:11:48.356 2d03 Recovering log #50
+2024/12/10-13:11:48.357 2d03 Reusing old log /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmprf8znn8n/Default/Local Storage/leveldb/000050.log 
