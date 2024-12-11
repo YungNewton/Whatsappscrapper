@@ -132,7 +132,7 @@ def run_scraper_periodically():
             last_end_time = datetime.now() - timedelta(minutes=15)
 
         # Calculate the time to wait until the next scrape
-        next_start_time = last_end_time + timedelta(minutes=1)
+        next_start_time = last_end_time + timedelta(minutes=15)
         current_time = datetime.now()
 
         # Wait only if the current time is earlier than the next start time

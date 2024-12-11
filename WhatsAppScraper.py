@@ -208,13 +208,14 @@ class WhatsAppScraper:
                     try:
                         print(f"Attempting to find and scrape archived chat: {chat_name}")
                         self.open_chat(chat_name, is_archived=True)  # Pass is_archived=True
-                        if not self.scroll_to_target_date(
+                        if self.scroll_to_target_date(
                             target_date=datetime.today().strftime("%m/%d/%Y"),
                             time_start=time_start,
                             time_end=time_end
                         ):
                             print(f"Skipping chat '{chat_name}' as it does not contain today's messages.")
-                            continue  # Skip this chat
+                            chats_not_found.remove(chat_name)
+                            break  # Skip this chat
                         self.extract_messages_with_images(time_start, time_end)
                         print(f"Scraping completed for archived chat: {chat_name}")
                         processed_chats.add(chat_name)  # Mark chat as processed
@@ -246,13 +247,14 @@ class WhatsAppScraper:
                         try:
                             print(f"Attempting to find and scrape normal chat: {chat_name} (Attempt {retry_count + 1}/{max_retries})")
                             self.open_chat(chat_name, is_archived=False)  # Pass is_archived=False
-                            if not self.scroll_to_target_date(
+                            if self.scroll_to_target_date(
                                 target_date=datetime.today().strftime("%m/%d/%Y"),
                                 time_start=time_start,
                                 time_end=time_end
                             ):
                                 print(f"Skipping chat '{chat_name}' as it does not contain today's messages.")
-                                continue  # Skip this chat
+                                chats_not_found.remove(chat_name)
+                                break  # Skip this chat
                             self.extract_messages_with_images(time_start, time_end)
                             print(f"Scraping completed for normal chat: {chat_name}")
                             processed_chats.add(chat_name)  # Mark chat as processed
@@ -394,17 +396,22 @@ class WhatsAppScraper:
 
                     # Process date elements to locate the target date
                     date_elements = message_container.find_elements(By.XPATH, '//div[@class="_amk4 _amkb"]/span[@class="_ao3e"]')
+                    date_elements = list(reversed(date_elements))
+                    if date_elements:
+                        first_date_text = date_elements[0].text
+                        first_message_date = self.parse_date_text(first_date_text)
+                        if first_message_date and first_message_date != datetime.today().date():
+                            print(f"First message date {first_message_date} is not today's date. Skipping scraping.")
+                            return True
+
+                    if target_date:
+                        target_date = target_date.date()
                     for date_element in date_elements:
                         try:
                             date_text = date_element.text
                             message_date = self.parse_date_text(date_text)
 
                             if message_date:
-                                # Check if the first date is not today's date
-                                if message_date != datetime.today().date():
-                                    print(f"First message date {message_date} is not today's date. Skipping scraping.")
-                                    return False  # Indicate that this chat should be skipped
-
                                 # Stop scrolling if we've reached the target date
                                 if target_date and message_date < target_date:
                                     print("Reached messages older than the target date.")
@@ -500,23 +507,24 @@ class WhatsAppScraper:
     def parse_date_text(self, date_text):
         """
         Parses a date from text that may say "TODAY," "YESTERDAY," a weekday name, or an actual date.
-        Returns a datetime object or None if the date cannot be parsed.
+        Returns a date object (not datetime) or None if the date cannot be parsed.
         """
-        today = datetime.today()
+        date_text = date_text.strip().upper()  # Normalize input
+        today = datetime.today().date()  # Only keep the date part
 
         if date_text == "TODAY":
             return today
         elif date_text == "YESTERDAY":
             return today - timedelta(days=1)
         elif date_text in calendar.day_name:
-            weekday_index = list(calendar.day_name).index(date_text)
+            weekday_index = list(calendar.day_name).index(date_text.capitalize())
             days_difference = weekday_index - today.weekday()
             if days_difference > 0:
                 days_difference -= 7
             return today + timedelta(days=days_difference)
         else:
             try:
-                return datetime.strptime(date_text, "%m/%d/%Y")
+                return datetime.strptime(date_text, "%m/%d/%Y").date()  # Convert to date
             except ValueError:
                 return None
             
