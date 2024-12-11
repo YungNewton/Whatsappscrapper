@@ -1,4 +1,19 @@
-2024/12/11-11:53:32.424 14f03 Reusing MANIFEST /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmp0etnon2a/Default/IndexedDB/https_web.whatsapp.com_0.indexeddb.leveldb/MANIFEST-000001
-2024/12/11-11:53:32.434 14f03 Recovering log #481
-2024/12/11-11:53:32.449 14f03 Reusing old log /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmp0etnon2a/Default/IndexedDB/https_web.whatsapp.com_0.indexeddb.leveldb/000481.log 
-2024/12/11-11:53:34.354 14e03 Manual compaction at level-0 from '\x00d\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00e\x00\x00\x00' @ 0 : 0; will stop at (end)
+2024/12/11-12:38:12.341 9107 Reusing MANIFEST /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmp3hjgirwa/Default/IndexedDB/https_web.whatsapp.com_0.indexeddb.leveldb/MANIFEST-000001
+2024/12/11-12:38:12.342 9107 Recovering log #516
+2024/12/11-12:38:12.351 9107 Reusing old log /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmp3hjgirwa/Default/IndexedDB/https_web.whatsapp.com_0.indexeddb.leveldb/000516.log 
+2024/12/11-12:38:14.151 14e03 Level-0 table #524: started
+2024/12/11-12:38:14.191 14e03 Level-0 table #524: 155978 bytes OK
+2024/12/11-12:38:14.258 14e03 Delete type=0 #516
+2024/12/11-12:38:14.327 14f03 Manual compaction at level-0 from '\x00k\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00l\x00\x00\x00' @ 0 : 0; will stop at (end)
+2024/12/11-12:38:14.347 8c03 Compacting 1@1 + 4@2 files
+2024/12/11-12:38:14.731 8c03 Generated table #525@1: 80770 keys, 2237011 bytes
+2024/12/11-12:38:14.940 8c03 Generated table #526@1: 14597 keys, 2167225 bytes
+2024/12/11-12:38:15.818 8c03 Generated table #527@1: 26456 keys, 2181412 bytes
+2024/12/11-12:38:15.908 8c03 Generated table #528@1: 18700 keys, 456646 bytes
+2024/12/11-12:38:15.909 8c03 Compacted 1@1 + 4@2 files => 7042294 bytes
+2024/12/11-12:38:15.947 8c03 compacted to: files[ 0 0 4 0 0 0 0 ]
+2024/12/11-12:38:15.966 8c03 Delete type=2 #518
+2024/12/11-12:38:15.966 8c03 Delete type=2 #524
+2024/12/11-12:38:15.966 8c03 Delete type=2 #519
+2024/12/11-12:38:15.966 8c03 Delete type=2 #521
+2024/12/11-12:38:15.966 8c03 Delete type=2 #520

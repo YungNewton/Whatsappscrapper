@@ -205,25 +205,31 @@ class WhatsAppScraper:
                 for chat_name in self.chat_names:
                     if chat_name in processed_chats:
                         continue  # Skip already processed chats
-                    try:
-                        print(f"Attempting to find and scrape archived chat: {chat_name}")
-                        self.open_chat(chat_name, is_archived=True)  # Pass is_archived=True
-                        if self.scroll_to_target_date(
-                            target_date=datetime.today().strftime("%m/%d/%Y"),
-                            time_start=time_start,
-                            time_end=time_end
-                        ):
-                            print(f"Skipping chat '{chat_name}' as it does not contain today's messages.")
+                    retry_count = 0
+                    max_retries = 2
+                    while retry_count < max_retries:
+                        try:
+                            print(f"Attempting to find and scrape archived chat: {chat_name} (Attempt {retry_count + 1}/{max_retries})")
+                            self.open_chat(chat_name, is_archived=True)  # Pass is_archived=True
+                            if self.scroll_to_target_date(
+                                target_date=datetime.today().strftime("%m/%d/%Y"),
+                                time_start=time_start,
+                                time_end=time_end
+                            ):
+                                print(f"Skipping chat '{chat_name}' as it does not contain today's messages.")
+                                processed_chats.add(chat_name)  # Mark chat as processed
+                                chats_not_found.remove(chat_name)
+                                break  # Skip this chat
+                            self.extract_messages_with_images(time_start, time_end)
+                            print(f"Scraping completed for archived chat: {chat_name}")
                             processed_chats.add(chat_name)  # Mark chat as processed
                             chats_not_found.remove(chat_name)
-                            continue  # Skip this chat
-                        self.extract_messages_with_images(time_start, time_end)
-                        print(f"Scraping completed for archived chat: {chat_name}")
-                        processed_chats.add(chat_name)  # Mark chat as processed
-                        chats_not_found.remove(chat_name)
-                    except Exception as e:
-                        print(f"Error scraping archived chat '{chat_name}'")
-                        chats_not_found.add(chat_name)  # Mark chat as not found
+                            break
+                        except Exception as e:
+                            retry_count += 1
+                            print(f"Error scraping archived chat '{chat_name}'")
+                            if retry_count == max_retries:
+                                chats_not_found.add(chat_name)  # Mark chat as not found
 
                 # Navigate back to the main chat panel
                 back_button = WebDriverWait(self.driver, 10).until(
@@ -357,7 +363,7 @@ class WhatsAppScraper:
         try:
             # Parse target date and time range if provided
             if target_date:
-                target_date = datetime.strptime(target_date, "%m/%d/%Y")
+                target_date = datetime.strptime(target_date, "%m/%d/%Y").date()
             time_start_dt = datetime.strptime(time_start, "%I:%M %p") if time_start else None
             time_end_dt = datetime.strptime(time_end, "%I:%M %p") if time_end else None
 
@@ -410,8 +416,6 @@ class WhatsAppScraper:
                             print(f"First message date {first_message_date} is not today's date. Skipping scraping.")
                             return True
 
-                    if target_date:
-                        target_date = target_date.date()
                     for date_element in date_elements:
                         try:
                             date_text = date_element.text
