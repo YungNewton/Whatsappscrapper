@@ -1,14 +1,3 @@
-2024/12/11-05:28:33.700 5103 Reusing MANIFEST /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmpkxmx2hcd/Default/Local Storage/leveldb/MANIFEST-000001
-2024/12/11-05:28:33.717 5103 Recovering log #63
-2024/12/11-05:28:33.718 5103 Level-0 table #65: started
-2024/12/11-05:28:33.753 5103 Level-0 table #65: 17778 bytes OK
-2024/12/11-05:28:33.821 5103 Delete type=0 #63
-2024/12/11-05:28:33.840 4e03 Compacting 4@0 + 1@1 files
-2024/12/11-05:28:33.873 4e03 Generated table #67@0: 119 keys, 15131 bytes
-2024/12/11-05:28:33.873 4e03 Compacted 4@0 + 1@1 files => 15131 bytes
-2024/12/11-05:28:33.935 4e03 compacted to: files[ 0 1 0 0 0 0 0 ]
-2024/12/11-05:28:33.937 4e03 Delete type=2 #62
-2024/12/11-05:28:33.937 4e03 Delete type=2 #59
-2024/12/11-05:28:33.937 4e03 Delete type=2 #65
-2024/12/11-05:28:33.937 4e03 Delete type=2 #56
-2024/12/11-05:28:33.937 4e03 Delete type=2 #54
+2024/12/11-05:38:50.270 4a03 Reusing MANIFEST /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmp3vea9hf7/Default/Local Storage/leveldb/MANIFEST-000001
+2024/12/11-05:38:50.281 4a03 Recovering log #66
+2024/12/11-05:38:50.285 4a03 Reusing old log /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmp3vea9hf7/Default/Local Storage/leveldb/000066.log 

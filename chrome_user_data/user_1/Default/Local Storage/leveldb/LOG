@@ -1,3 +1,5 @@
-2024/12/11-05:38:50.270 4a03 Reusing MANIFEST /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmp3vea9hf7/Default/Local Storage/leveldb/MANIFEST-000001
-2024/12/11-05:38:50.281 4a03 Recovering log #66
-2024/12/11-05:38:50.285 4a03 Reusing old log /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmp3vea9hf7/Default/Local Storage/leveldb/000066.log 
+2024/12/11-11:53:27.836 5107 Reusing MANIFEST /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmp0etnon2a/Default/Local Storage/leveldb/MANIFEST-000001
+2024/12/11-11:53:27.847 5107 Recovering log #66
+2024/12/11-11:53:27.850 5107 Level-0 table #69: started
+2024/12/11-11:53:27.886 5107 Level-0 table #69: 15799 bytes OK
+2024/12/11-11:53:27.957 5107 Delete type=0 #66

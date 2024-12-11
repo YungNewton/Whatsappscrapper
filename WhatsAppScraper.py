@@ -427,59 +427,6 @@ class WhatsAppScraper:
                         except ValueError:
                             print("Error parsing date:", date_element.text)
 
-                    # Check and process image messages for time range
-                    image_messages = message_container.find_elements(
-                        By.XPATH,
-                        '//div[contains(@class, "message-in") or contains(@class, "message-out")]'
-                        '//div[contains(@role, "button") and contains(@aria-label, "Open picture")]'
-                        '/ancestor::div[contains(@class, "message-in") or contains(@class, "message-out")]'
-                    )
-                    for message in image_messages:
-                        try:
-                            # Extract timestamp
-                            try:
-                                timestamp_element = message.find_element(By.XPATH, './/div[contains(@class, "copyable-text")]')
-                                raw_timestamp_text = timestamp_element.get_attribute("data-pre-plain-text").rstrip("]").strip()
-                            except NoSuchElementException:
-                                raw_timestamp_text = ""
-                            time_text = raw_timestamp_text.split(",")[0].strip()
-                            time_text = time_text.lstrip("[").strip()
-                            time_text = "".join(time_text.split())  # Remove all whitespace characters
-
-                            # Skip processing if time_text is empty
-                            if not time_text:
-                                continue
-
-                            # Parse the time into a datetime object
-                            try:
-                                # Attempt to parse the time in both 12-hour and 24-hour formats
-                                try:
-                                    parsed_time = datetime.strptime(time_text, "%I:%M%p").time()  # 12-hour format
-                                except ValueError:
-                                    parsed_time = datetime.strptime(time_text, "%H:%M").time()  # 24-hour format
-                                
-                                # Combine the parsed time with today's date
-                                message_time = datetime.combine(datetime.today(), parsed_time)
-
-                                # Adjust message time for overnight ranges
-                                if range_crosses_midnight and message_time < time_start_dt:
-                                    message_time += timedelta(days=1)
-
-                            except ValueError as ve:
-                                print(f"ValueError: Could not parse timestamp. Cleaned: '{time_text}'. Exception: {ve}")
-                                continue
-
-                            # Stop scrolling if the message is outside the time range
-                            if time_start_dt and message_time < time_start_dt:
-                                print(f"Reached image message older than the start time: {time_start_dt.strftime('%I:%M %p')}.")
-                                return
-                            if time_end_dt_adjusted and message_time > time_end_dt_adjusted:
-                                print(f"Reached image message newer than the end time: {time_end_dt_adjusted.strftime('%I:%M %p')}.")
-                                return
-
-                        except (StaleElementReferenceException, ValueError, AttributeError, NoSuchElementException):
-                            print("Error processing image message, skipping.")
-
                     # Check if we've reached the top of the chat by comparing scroll height
                     current_height = self.driver.execute_script("return arguments[0].scrollHeight;", message_container)
                     if previous_height == current_height:
@@ -516,22 +463,23 @@ class WhatsAppScraper:
         Returns a date object (not datetime) or None if the date cannot be parsed.
         """
         date_text = date_text.strip().upper()  # Normalize input
-        today = datetime.today().date()  # Only keep the date part
+        today = datetime.today().date()
 
         if date_text == "TODAY":
             return today
         elif date_text == "YESTERDAY":
             return today - timedelta(days=1)
-        elif date_text in calendar.day_name:
-            weekday_index = list(calendar.day_name).index(date_text.capitalize())
-            days_difference = weekday_index - today.weekday()
+        elif date_text in [day.upper() for day in calendar.day_name]:  # Compare in uppercase
+            weekday_index = [day.upper() for day in calendar.day_name].index(date_text)
+            days_difference = weekday_index - today.weekday() - 7
             if days_difference > 0:
                 days_difference -= 7
             return today + timedelta(days=days_difference)
         else:
             try:
-                return datetime.strptime(date_text, "%m/%d/%Y").date()  # Convert to date
+                return datetime.strptime(date_text, "%m/%d/%Y").date()
             except ValueError:
+                print(f"Could not parse date_text: {date_text}")  # Add debug info
                 return None
             
     def fetch_blob_with_retries(self, driver, blob_url, retries=3, delay=5):
