@@ -548,6 +548,16 @@ class WhatsAppScraper:
 
             for idx, message in enumerate(reversed(messages_with_images)):
                 try:
+                    is_group_message = False
+                    try:
+                        # Look for the 'role="group"' attribute to identify group messages
+                        group_role_element = message.find_element(By.XPATH, './/div[@role="group"]')
+                        if group_role_element:
+                            is_group_message = True
+                            print(f"Message {idx + 1} is a group message.")
+                    except NoSuchElementException:
+                        is_group_message = False  # Not a group message
+                    
                     # Retrieve the timestamp
                     try:
                         timestamp_element = message.find_element(By.XPATH, './/div[contains(@class, "copyable-text")]')
@@ -561,39 +571,45 @@ class WhatsAppScraper:
                     except (NoSuchElementException, ValueError) as e:
                         print(f"Message {idx + 1}: Timestamp not found or invalid.")
                         try:
-                            aria_label_text = message.get_attribute("aria-label")
-                            if aria_label_text:
-                                # Extract timestamp from aria-label, assuming it's the last part
-                                timestamp_text = aria_label_text.split()[-2] + " " + aria_label_text.split()[-1]  # Example: "3:12 AM"
+                            # Find all span elements matching the general class pattern
+                            span_elements = message.find_elements(By.XPATH, './/span[contains(@class, "x1rg5ohu") and contains(@class, "x16dsc37")]')
+                            
+                            message_time = None
+                            for span in span_elements:
+                                timestamp_text = span.text.strip()
+                                
+                                # Attempt to parse the text as a timestamp
                                 try:
-                                    message_time = datetime.strptime(timestamp_text, "%I:%M %p")  # 12-hour format
+                                    message_time = datetime.strptime(timestamp_text, "%I:%M %p")  # Parse 12-hour format
+                                    print(f"Successfully extracted timestamp: {timestamp_text}")
+                                    break  # Stop iteration once we find a valid timestamp
                                 except ValueError:
-                                    message_time = datetime.strptime(timestamp_text, "%H:%M")  # 24-hour format
-                                print(f"Fallback timestamp successfully extracted.")
-                            else:
-                                # New fallback for span-based timestamp
-                                timestamp_element = message.find_element(By.XPATH, './/span[contains(@class, "x1rg5ohu")]')
-                                timestamp_text = timestamp_element.text
-                                try:
-                                    message_time = datetime.strptime(timestamp_text, "%I:%M %p")
-                                except ValueError:
-                                    message_time = datetime.strptime(timestamp_text, "%H:%M")
-                                print(f"Fallback timestamp successfully extracted from span.")
+                                    # Skip if this span doesn't contain a valid timestamp
+                                    print(f"Invalid timestamp format in span: {timestamp_text}, trying next...")
+                                    continue
+
+                            if message_time is None:
+                                print(f"Message: No valid timestamp found in matching spans.")
+                            print(f"Fallback timestamp successfully extracted from span.")
                         except (NoSuchElementException, ValueError) as fallback_error:
                             print(f"Final fallback timestamp extraction also failed for message {idx + 1}: {fallback_error}.")
                             message_time = None
 
                     # Adjust for overnight ranges
                     time_end_dt_adjusted = time_end_dt + timedelta(days=1) if range_crosses_midnight else time_end_dt
+                    time_end_with_buffer = time_end_dt_adjusted + timedelta(minutes=15)
                     if message_time:
                         if range_crosses_midnight and message_time < time_start_dt:
                             message_time += timedelta(days=1)
                         if time_start_dt and message_time < time_start_dt:
                             print(f"Message {idx + 1} stopped: Time {message_time.strftime('%I:%M %p')} is before the start range.")
                             break
-                        if time_end_dt_adjusted and message_time > time_end_dt_adjusted:
-                            print(f"Skipping: Message {idx + 1} is newer than the end time: {message_time.strftime('%I:%M %p')}.")
-                            continue
+                        if time_end_dt_adjusted and message_time > time_end_with_buffer:
+                            print(f"Stopping: Message {idx + 1} is more than 15 minutes newer than the end time: {message_time.strftime('%I:%M %p')}.")
+                            break  # Stop the entire process
+                        elif time_end_dt_adjusted and message_time > time_end_dt_adjusted:
+                            print(f"Skipping: Message {idx + 1} is within 15 minutes newer than the end time: {message_time.strftime('%I:%M %p')}.")
+                            continue  # Skip this message but continue the loop
 
                     # Retrieve the image description
                     try:
@@ -608,166 +624,320 @@ class WhatsAppScraper:
 
                     # Retrieve image elements
                     image_elements = message.find_elements(By.XPATH, './/img')
-                    blob_image = next((img for img in image_elements if img.get_attribute("src") and img.get_attribute("src").startswith("blob:")), None)
-                    base64_image = next((img for img in image_elements if img.get_attribute("src") and img.get_attribute("src").startswith("data:image")), None)
+                    if not is_group_message:
+                        blob_image = next((img for img in image_elements if img.get_attribute("src") and img.get_attribute("src").startswith("blob:")), None)
+                        base64_image = next((img for img in image_elements if img.get_attribute("src") and img.get_attribute("src").startswith("data:image")), None)
 
-                    temp_file_path = None
+                        temp_file_path = None
 
-                    # Process blob image
-                    if blob_image:
-                        blob_url = blob_image.get_attribute("src")
-                        print(f"Blob URL: {blob_url}")
+                        # Process blob image
+                        if blob_image:
+                            blob_url = blob_image.get_attribute("src")
+                            print(f"Blob URL: {blob_url}")
 
-                        if not blob_url or not blob_url.startswith("blob:"):
-                            print(f"Message {idx + 1}: Invalid blob URL, skipping.")
-                            continue
+                            if not blob_url or not blob_url.startswith("blob:"):
+                                print(f"Message {idx + 1}: Invalid blob URL, skipping.")
+                                continue
 
-                        try:
-                            base64_data = self.fetch_blob_with_retries(self.driver, blob_url, retries=5, delay=3)  # Adjust retries and delay as needed
-                            if base64_data:
-                                base64_content = base64_data.split(",")[1]
-                                temp_file_path = os.path.join(temp_dir, f"extracted_image_{idx + 1}.png")
-                                with open(temp_file_path, "wb") as file:
-                                    file.write(base64.b64decode(base64_content))
-                                print(f"Message {idx + 1}: Blob image saved to {temp_file_path}.")
-                            else:
-                                print(f"Message {idx + 1}: Failed to fetch blob after retries.")
-                        except Exception as e:
-                            print(f"Message {idx + 1}: Error fetching blob URL. Error: {e}")
-                            
-                    # Process base64 image
-                    elif base64_image:
-                        image_src = base64_image.get_attribute("src")
-                        print(f"Message {idx + 1}: Base64 image src - {image_src}")
-                        try:
-                            # Scroll the image into view and wait until it is visible
-                            self.driver.execute_script("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", blob_image)
-
-                            # Check for all overlapping blob images in the same container
-                            image_elements = message.find_elements(By.XPATH, './/img[contains(@src, "blob:")]')
-
-                            # Attempt to click each image in order
-                            for img_idx, img in enumerate(image_elements):
-                                try:
-                                    print(f"Trying to click blob image {img_idx + 1}/{len(image_elements)}: {img.get_attribute('src')}")
-                                    self.driver.execute_script("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", img)
-                                    WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable(img))
-                                    img.click()
-                                    print(f"Successfully clicked blob image {img_idx + 1}.")
-                                    break
-                                except Exception as e:
-                                    print(f"Blob image {img_idx + 1} click failed. Trying next image. Error: {e}")
-
-                            # Wait for the viewer to load the image
-                            blob_image_viewer = WebDriverWait(self.driver, 10).until(
-                                EC.presence_of_element_located((By.XPATH, '//img[contains(@src, "blob:")]'))
-                            )
-
-                            # Retry fetching the blob URL from the opened viewer
-                            blob_url_retry = blob_image_viewer.get_attribute("src")
-                            base64_data = self.fetch_blob_with_retries(self.driver, blob_url_retry, retries=3, delay=3)
-
-                            if base64_data:
-                                # Save the blob image after retry
-                                base64_content = base64_data.split(",")[1]
-                                temp_file_path = os.path.join(temp_dir, f"retried_image_{idx + 1}.png")
-                                with open(temp_file_path, "wb") as file:
-                                    file.write(base64.b64decode(base64_content))
-                                print(f"Message {idx + 1}: Blob image saved to {temp_file_path} after retry.")
-                            else:
-                                print(f"Message {idx + 1}: Blob retry failed.")
-
-                        except Exception as e:
-                            print(f"Message {idx + 1}: Error handling fallback for blob fetch. Error: {e}")
-
-                    # Fallback to screenshot
-                    if not temp_file_path:
-                        print(f"Message {idx + 1}: Fetching blob failed. Clicking the image to retry.")
-                        try:
-                            # Scroll the image into view and wait until it is visible
-                            self.driver.execute_script("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", blob_image)
-
-                            # Check for all overlapping blob images in the same container
-                            image_elements = message.find_elements(By.XPATH, './/img[contains(@src, "blob:")]')
-
-                            # Attempt to click each image in order
-                            for img_idx, img in enumerate(image_elements):
-                                try:
-                                    print(f"Trying to click blob image {img_idx + 1}/{len(image_elements)}: {img.get_attribute('src')}")
-                                    self.driver.execute_script("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", img)
-                                    WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable(img))
-                                    img.click()
-                                    print(f"Successfully clicked blob image {img_idx + 1}.")
-                                    break
-                                except Exception as e:
-                                    print(f"Blob image {img_idx + 1} click failed. Trying next image. Error: {e}")
-
-                            # Wait for the viewer to load the image
-                            blob_image_viewer = WebDriverWait(self.driver, 10).until(
-                                EC.presence_of_element_located((By.XPATH, '//img[contains(@src, "blob:")]'))
-                            )
-
-                            # Retry fetching the blob URL from the opened viewer
-                            blob_url_retry = blob_image_viewer.get_attribute("src")
-                            base64_data = self.fetch_blob_with_retries(self.driver, blob_url_retry, retries=3, delay=3)
-
-                            if base64_data:
-                                # Save the blob image after retry
-                                base64_content = base64_data.split(",")[1]
-                                temp_file_path = os.path.join(temp_dir, f"retried_image_{idx + 1}.png")
-                                with open(temp_file_path, "wb") as file:
-                                    file.write(base64.b64decode(base64_content))
-                                print(f"Message {idx + 1}: Blob image saved to {temp_file_path} after retry.")
-                            else:
-                                print(f"Message {idx + 1}: Blob retry failed.")
-
-                        except Exception as e:
-                            print(f"Message {idx + 1}: Error handling fallback for blob fetch. Error: {e}")
-
-                        # Always attempt fallback screenshot if blob fetch or retry fails
-                        if not temp_file_path:
-                            print(f"Message {idx + 1}: Fetching blob failed. Attempting to ensure image is open for fallback.")
                             try:
-                                # Ensure the image is open before taking a screenshot
-                                # try:
-                                #     # Scroll the image into view
-                                #     self.driver.execute_script("arguments[0].scrollIntoView(true);", blob_image)
-                                #     print("scrolling")
-                                #     time.sleep(1)  # Allow scrolling to complete
-                                    
-                                #     # Try clicking the image to open the viewer if it's not already open
-                                #     if not self.driver.find_elements(By.XPATH, '//img[contains(@src, "blob:")]'):
-                                #         WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable((By.XPATH, './/img[contains(@src, "blob:")]')))
-                                #         blob_image.click()
-                                #         time.sleep(2)  # Allow the viewer to load
+                                base64_data = self.fetch_blob_with_retries(self.driver, blob_url, retries=5, delay=3)  # Adjust retries and delay as needed
+                                if base64_data:
+                                    base64_content = base64_data.split(",")[1]
+                                    temp_file_path = os.path.join(temp_dir, f"extracted_image_{idx + 1}.png")
+                                    with open(temp_file_path, "wb") as file:
+                                        file.write(base64.b64decode(base64_content))
+                                    print(f"Message {idx + 1}: Blob image saved to {temp_file_path}.")
+                                else:
+                                    print(f"Message {idx + 1}: Failed to fetch blob after retries.")
+                            except Exception as e:
+                                print(f"Message {idx + 1}: Error fetching blob URL. Error: {e}")
+                                
+                        # Process base64 image
+                        elif base64_image:
+                            image_src = base64_image.get_attribute("src")
+                            print(f"Message {idx + 1}: Base64 image src - {image_src}")
+                            try:
+                                # Scroll the image into view and wait until it is visible
+                                self.driver.execute_script("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", blob_image)
 
-                                # except Exception as e:
-                                #     print(f"Message {idx + 1}: Could not open image viewer. Error: {e}")
+                                # Check for all overlapping blob images in the same container
+                                image_elements = message.find_elements(By.XPATH, './/img[contains(@src, "blob:")]')
 
-                                # Now take a screenshot of the open viewer
-                                blob_image_viewer = self.driver.find_element(By.XPATH, '//img[contains(@src, "blob:")]')
-                                screenshot_path = os.path.join(temp_dir, f"screenshot_image_{idx + 1}.png")
-                                blob_image_viewer.screenshot(screenshot_path)
-                                print(f"Message {idx + 1}: Screenshot saved to {screenshot_path}.")
-                                temp_file_path = screenshot_path
+                                # Attempt to click each image in order
+                                for img_idx, img in enumerate(image_elements):
+                                    try:
+                                        print(f"Trying to click blob image {img_idx + 1}/{len(image_elements)}: {img.get_attribute('src')}")
+                                        self.driver.execute_script("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", img)
+                                        WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable(img))
+                                        img.click()
+                                        print(f"Successfully clicked blob image {img_idx + 1}.")
+                                        break
+                                    except Exception as e:
+                                        print(f"Blob image {img_idx + 1} click failed. Trying next image. Error: {e}")
+
+                                # Wait for the viewer to load the image
+                                blob_image_viewer = WebDriverWait(self.driver, 10).until(
+                                    EC.presence_of_element_located((By.XPATH, '//img[contains(@src, "blob:")]'))
+                                )
+
+                                # Retry fetching the blob URL from the opened viewer
+                                blob_url_retry = blob_image_viewer.get_attribute("src")
+                                base64_data = self.fetch_blob_with_retries(self.driver, blob_url_retry, retries=3, delay=3)
+
+                                if base64_data:
+                                    # Save the blob image after retry
+                                    base64_content = base64_data.split(",")[1]
+                                    temp_file_path = os.path.join(temp_dir, f"retried_image_{idx + 1}.png")
+                                    with open(temp_file_path, "wb") as file:
+                                        file.write(base64.b64decode(base64_content))
+                                    print(f"Message {idx + 1}: Blob image saved to {temp_file_path} after retry.")
+                                else:
+                                    print(f"Message {idx + 1}: Blob retry failed.")
 
                             except Exception as e:
-                                print(f"Message {idx + 1}: Error taking fallback screenshot. Error: {e}")
+                                print(f"Message {idx + 1}: Error handling fallback for blob fetch. Error: {e}")
 
-                        # Close the image viewer if it's still open
-                        try:
-                            close_button = self.driver.find_element(By.XPATH, '//div[@title="Close"]')
-                            close_button.click()
-                            time.sleep(1)
-                        except Exception:
-                            print(f"Message {idx + 1}: Could not find or click close button.")
+                        # Fallback to screenshot
+                        if not temp_file_path:
+                            print(f"Message {idx + 1}: Fetching blob failed. Clicking the image to retry.")
+                            try:
+                                # Scroll the image into view and wait until it is visible
+                                self.driver.execute_script("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", blob_image)
 
-                    # Append processed message
-                    processed_messages.append({
-                        "file_path": temp_file_path,
-                        "caption": f"{description}"
-                    })
+                                # Check for all overlapping blob images in the same container
+                                image_elements = message.find_elements(By.XPATH, './/img[contains(@src, "blob:")]')
 
+                                # Attempt to click each image in order
+                                for img_idx, img in enumerate(image_elements):
+                                    try:
+                                        print(f"Trying to click blob image {img_idx + 1}/{len(image_elements)}: {img.get_attribute('src')}")
+                                        self.driver.execute_script("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", img)
+                                        WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable(img))
+                                        img.click()
+                                        print(f"Successfully clicked blob image {img_idx + 1}.")
+                                        break
+                                    except Exception as e:
+                                        print(f"Blob image {img_idx + 1} click failed. Trying next image. Error: {e}")
+
+                                # Wait for the viewer to load the image
+                                blob_image_viewer = WebDriverWait(self.driver, 10).until(
+                                    EC.presence_of_element_located((By.XPATH, '//img[contains(@src, "blob:")]'))
+                                )
+
+                                # Retry fetching the blob URL from the opened viewer
+                                blob_url_retry = blob_image_viewer.get_attribute("src")
+                                base64_data = self.fetch_blob_with_retries(self.driver, blob_url_retry, retries=3, delay=3)
+
+                                if base64_data:
+                                    # Save the blob image after retry
+                                    base64_content = base64_data.split(",")[1]
+                                    temp_file_path = os.path.join(temp_dir, f"retried_image_{idx + 1}.png")
+                                    with open(temp_file_path, "wb") as file:
+                                        file.write(base64.b64decode(base64_content))
+                                    print(f"Message {idx + 1}: Blob image saved to {temp_file_path} after retry.")
+                                else:
+                                    print(f"Message {idx + 1}: Blob retry failed.")
+
+                            except Exception as e:
+                                print(f"Message {idx + 1}: Error handling fallback for blob fetch. Error: {e}")
+
+                            # Always attempt fallback screenshot if blob fetch or retry fails
+                            if not temp_file_path:
+                                print(f"Message {idx + 1}: Fetching blob failed. Attempting to ensure image is open for fallback.")
+                                try:
+                                    # Ensure the image is open before taking a screenshot
+                                    # try:
+                                    #     # Scroll the image into view
+                                    #     self.driver.execute_script("arguments[0].scrollIntoView(true);", blob_image)
+                                    #     print("scrolling")
+                                    #     time.sleep(1)  # Allow scrolling to complete
+                                        
+                                    #     # Try clicking the image to open the viewer if it's not already open
+                                    #     if not self.driver.find_elements(By.XPATH, '//img[contains(@src, "blob:")]'):
+                                    #         WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable((By.XPATH, './/img[contains(@src, "blob:")]')))
+                                    #         blob_image.click()
+                                    #         time.sleep(2)  # Allow the viewer to load
+
+                                    # except Exception as e:
+                                    #     print(f"Message {idx + 1}: Could not open image viewer. Error: {e}")
+
+                                    # Now take a screenshot of the open viewer
+                                    blob_image_viewer = self.driver.find_element(By.XPATH, '//img[contains(@src, "blob:")]')
+                                    screenshot_path = os.path.join(temp_dir, f"screenshot_image_{idx + 1}.png")
+                                    blob_image_viewer.screenshot(screenshot_path)
+                                    print(f"Message {idx + 1}: Screenshot saved to {screenshot_path}.")
+                                    temp_file_path = screenshot_path
+
+                                except Exception as e:
+                                    print(f"Message {idx + 1}: Error taking fallback screenshot. Error: {e}")
+
+                            # Close the image viewer if it's still open
+                            try:
+                                close_button = self.driver.find_element(By.XPATH, '//div[@title="Close"]')
+                                close_button.click()
+                                time.sleep(1)
+                            except Exception:
+                                print(f"Message {idx + 1}: Could not find or click close button.")
+
+                        # Append processed message
+                        processed_messages.append({
+                            "file_path": temp_file_path,
+                            "caption": f"{description}"
+                        })
+                    else:
+                        temp_file_paths = []  # List to hold paths of all processed images
+                        for idx in range(0, len(image_elements), 2):  # Iterate in pairs
+                            counter = 0
+                            counter += 1
+                            image_pair = image_elements[idx:idx+2]
+                            blob_image = next((img for img in image_pair if img.get_attribute("src") and img.get_attribute("src").startswith("blob:")), None)
+                            base64_image = next((img for img in image_pair if img.get_attribute("src") and img.get_attribute("src").startswith("data:image")), None)
+
+                            temp_file_path = None
+
+                            # Process blob image
+                            if blob_image:
+                                blob_url = blob_image.get_attribute("src")
+                                print(f"Blob URL: {blob_url}")
+
+                                if not blob_url or not blob_url.startswith("blob:"):
+                                    print(f"Message {idx + 1}: Invalid blob URL, skipping.")
+                                    continue
+
+                                try:
+                                    base64_data = self.fetch_blob_with_retries(self.driver, blob_url, retries=5, delay=3)  # Adjust retries and delay as needed
+                                    if base64_data:
+                                        base64_content = base64_data.split(",")[1]
+                                        temp_file_path = os.path.join(temp_dir, f"extracted_image_{idx + 1}.png")
+                                        with open(temp_file_path, "wb") as file:
+                                            file.write(base64.b64decode(base64_content))
+                                        print(f"Message {idx + 1}: Blob image saved to {temp_file_path}.")
+                                    else:
+                                        print(f"Message {idx + 1}: Failed to fetch blob after retries.")
+                                except Exception as e:
+                                    print(f"Message {idx + 1}: Error fetching blob URL. Error: {e}")
+                                    
+                            # Process base64 image
+                            elif base64_image:
+                                image_src = base64_image.get_attribute("src")
+                                print(f"Message {idx + 1}: Base64 image src - {image_src}")
+                                try:
+                                    # Scroll the image into view and wait until it is visible
+                                    self.driver.execute_script("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", blob_image)
+
+                                    # Check for all overlapping blob images in the same container
+                                    image_elements = message.find_elements(By.XPATH, './/img[contains(@src, "blob:")]')
+
+                                    # Attempt to click each image in order
+                                    for img_idx, img in enumerate(image_elements):
+                                        try:
+                                            print(f"Trying to click blob image {img_idx + 1}/{len(image_elements)}: {img.get_attribute('src')}")
+                                            self.driver.execute_script("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", img)
+                                            WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable(img))
+                                            img.click()
+                                            print(f"Successfully clicked blob image {img_idx + 1}.")
+                                            break
+                                        except Exception as e:
+                                            print(f"Blob image {img_idx + 1} click failed. Trying next image. Error: {e}")
+
+                                    # Wait for the viewer to load the image
+                                    blob_image_viewer = WebDriverWait(self.driver, 10).until(
+                                        EC.presence_of_element_located((By.XPATH, '//img[contains(@src, "blob:")]'))
+                                    )
+
+                                    # Retry fetching the blob URL from the opened viewer
+                                    blob_url_retry = blob_image_viewer.get_attribute("src")
+                                    base64_data = self.fetch_blob_with_retries(self.driver, blob_url_retry, retries=3, delay=3)
+
+                                    if base64_data:
+                                        # Save the blob image after retry
+                                        base64_content = base64_data.split(",")[1]
+                                        temp_file_path = os.path.join(temp_dir, f"retried_image_{idx + 1}.png")
+                                        with open(temp_file_path, "wb") as file:
+                                            file.write(base64.b64decode(base64_content))
+                                        print(f"Message {idx + 1}: Blob image saved to {temp_file_path} after retry.")
+                                    else:
+                                        print(f"Message {idx + 1}: Blob retry failed.")
+
+                                except Exception as e:
+                                    print(f"Message {idx + 1}: Error handling fallback for blob fetch. Error: {e}")
+
+                            temp_file_path = None
+                            # Fallback to screenshot
+                            if not temp_file_path:
+                                print(f"Message {idx + 1}: Fetching blob failed. Clicking the image to retry.")
+                                try:
+                                    # Scroll the image into view and wait until it is visible
+                                    self.driver.execute_script("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", blob_image)
+
+                                    # Check for all overlapping blob images in the same container
+                                    image_elements = message.find_elements(By.XPATH, './/img[contains(@src, "blob:")]')
+
+                                    # Attempt to click each image in order
+                                    for img_idx, img in enumerate(image_elements):
+                                        try:
+                                            print(f"Trying to click blob image {img_idx + 1}/{len(image_elements)}: {img.get_attribute('src')}")
+                                            self.driver.execute_script("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", img)
+                                            WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable(img))
+                                            img.click()
+                                            print(f"Successfully clicked blob image {img_idx + 1}.")
+                                            break
+                                        except Exception as e:
+                                            print(f"Blob image {img_idx + 1} click failed. Trying next image. Error: {e}")
+
+                                    # Wait for the viewer to load the image
+                                    blob_image_viewer = WebDriverWait(self.driver, 10).until(
+                                        EC.presence_of_element_located((By.XPATH, '//img[contains(@src, "blob:")]'))
+                                    )
+
+                                    # Retry fetching the blob URL from the opened viewer
+                                    blob_url_retry = blob_image_viewer.get_attribute("src")
+                                    base64_data = self.fetch_blob_with_retries(self.driver, blob_url_retry, retries=3, delay=3)
+
+                                    if base64_data:
+                                        # Save the blob image after retry
+                                        base64_content = base64_data.split(",")[1]
+                                        temp_file_path = os.path.join(temp_dir, f"retried_image_{idx + 1}.png")
+                                        with open(temp_file_path, "wb") as file:
+                                            file.write(base64.b64decode(base64_content))
+                                        print(f"Message {idx + 1}: Blob image saved to {temp_file_path} after retry.")
+                                    else:
+                                        print(f"Message {idx + 1}: Blob retry failed.")
+
+                                except Exception as e:
+                                    print(f"Message {idx + 1}: Error handling fallback for blob fetch. Error: {e}")
+
+                                # Always attempt fallback screenshot if blob fetch or retry fails
+                                if not temp_file_path:
+                                    print(f"Message {idx + 1}: Fetching blob failed. Attempting to ensure image is open for fallback.")
+                                    try:
+                                        # Now take a screenshot of the open viewer
+                                        blob_image_viewer = self.driver.find_element(By.XPATH, '//img[contains(@src, "blob:")]')
+                                        screenshot_path = os.path.join(temp_dir, f"screenshot_image_{idx + 1}.png")
+                                        blob_image_viewer.screenshot(screenshot_path)
+                                        print(f"Message {idx + 1}: Screenshot saved to {screenshot_path}.")
+                                        temp_file_path = screenshot_path
+
+                                    except Exception as e:
+                                        print(f"Message {idx + 1}: Error taking fallback screenshot. Error: {e}")
+
+                                # Close the image viewer if it's still open
+                                try:
+                                    close_button = self.driver.find_element(By.XPATH, '//div[@title="Close"]')
+                                    close_button.click()
+                                    time.sleep(1)
+                                except Exception:
+                                    print(f"Message {idx + 1}: Could not find or click close button.")
+
+                            # Append the processed file path
+                            if temp_file_path:
+                                temp_file_paths.append(temp_file_path)
+
+                        # Append processed message
+                        processed_messages.append({
+                            "file_path": temp_file_paths,
+                            "caption": f"{description}"
+                        })
                 except Exception as e:
                     print(f"Error processing message with image: {e}")
 
@@ -777,8 +947,13 @@ class WhatsAppScraper:
                 try:
                     file_path = message_data["file_path"]
                     caption = message_data["caption"]
-                    print(f"Posting message {idx + 1} to Telegram with caption: {caption}")
-                    self.telegram_poster.post_image(file_path, caption)
+                    
+                    if isinstance(file_path, list):  # Check if file_path is a list
+                        print(f"Posting media group {idx + 1} to Telegram with caption: {caption}")
+                        self.telegram_poster.post_images(file_path, caption)  # Post as a media group
+                    else:
+                        print(f"Posting single image {idx + 1} to Telegram with caption: {caption}")
+                        self.telegram_poster.post_image(file_path, caption)  # Post as a single image
                 except Exception as e:
                     print(f"Error posting message {idx + 1}: {e}")
 
@@ -822,13 +997,17 @@ class WhatsAppScraper:
                         message_time = datetime.strptime(timestamp_text, "%H:%M")  # 24-hour format
                     timestamp = timestamp_element if timestamp_element else " "
 
+                    time_end_with_buffer = time_end_dt + timedelta(minutes=15)
                     if message_time:
                         if time_start_dt and message_time < time_start_dt:
                             print(f"Message {idx + 1} stopped: Time {message_time.strftime('%I:%M %p')} is before the start range.")
                             break  # Stop processing entirely when the message is too old
-                        if time_end_dt and message_time > time_end_dt:
-                            print(f"Skipping: Message {idx + 1} is newer than the end time: {message_time.strftime('%I:%M %p')}.")
-                            continue
+                        if time_end_dt and message_time > time_end_with_buffer:
+                            print(f"Stopping: Message {idx + 1} is more than 15 minutes newer than the end time: {message_time.strftime('%I:%M %p')}.")
+                            break  # Stop the entire process
+                        elif time_end_dt and message_time > time_end_dt:
+                            print(f"Skipping: Message {idx + 1} is within 15 minutes newer than the end time: {message_time.strftime('%I:%M %p')}.")
+                            continue  # Skip this message but continue the loop
 
                     # Extract description (if available)
                     description_element = message.find_elements(By.XPATH, './/span[@class="_ao3e selectable-text copyable-text"]/span')

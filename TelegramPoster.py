@@ -1,4 +1,5 @@
 import requests
+import json
 from io import BytesIO
 import time
 
@@ -13,7 +14,7 @@ class TelegramPoster:
         """
         self.bot_token = bot_token
         self.destination = channel_username
-        self.api_url = f"https://api.telegram.org/bot{self.bot_token}/sendPhoto"
+        self.api_url = f"https://api.telegram.org/bot{self.bot_token}"
 
     def parse_destination(self):
         """
@@ -49,6 +50,7 @@ class TelegramPoster:
 
         # Parse the destination to handle optional message_thread_id
         chat_id, thread_id = self.parse_destination()
+        url = f"{self.api_url}/sendPhoto"
 
         def prepare_payload():
             """
@@ -81,7 +83,7 @@ class TelegramPoster:
             try:
                 files, data, file = prepare_payload()  # Prepare the payload
                 print(f"Sending payload: {data}")  # Debug
-                response = requests.post(self.api_url, data=data, files=files)
+                response = requests.post(url, data=data, files=files)
                 if response.status_code == 200:
                     print("Image posted successfully!")
                     if file:
@@ -103,3 +105,51 @@ class TelegramPoster:
             finally:
                 if file:
                     file.close()  # Ensure file is closed even on exceptions
+        
+    def post_images(self, image_list, caption):
+        """
+        Posts multiple images as a single media group with the same caption.
+
+        Args:
+            image_list (list): A list of image file paths or BytesIO objects.
+            caption (str): The caption to include with the media group.
+        """
+        max_caption_length = 1024
+        if len(caption) > max_caption_length:
+            caption = caption[:max_caption_length - 3] + "..."  # Truncate with ellipsis if too long
+
+        chat_id, thread_id = self.parse_destination()
+        url = f"{self.api_url}/sendMediaGroup"
+
+        media_group = []
+        files = {}
+        for idx, image_data in enumerate(image_list):
+            file_key = f"photo{idx}"
+            if isinstance(image_data, str):
+                files[file_key] = open(image_data, "rb")
+            elif isinstance(image_data, BytesIO):
+                image_data.seek(0)
+                files[file_key] = ("image.png", image_data, "image/png")
+            else:
+                print(f"Unsupported image type at index {idx}. Skipping...")
+                continue
+
+            media_group.append({
+                "type": "photo",
+                "media": f"attach://{file_key}",
+                "caption": caption if idx == 0 else ""  # Caption only for the first image
+            })
+
+        data = {
+            "chat_id": chat_id,
+            "media": json.dumps(media_group)  # Properly serialize the media group
+        }
+        if thread_id:
+            data["message_thread_id"] = thread_id
+
+        try:
+            response = requests.post(url, data=data, files=files)
+        finally:
+            for file in files.values():
+                if hasattr(file, "close"):
+                    file.close()
