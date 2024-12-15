@@ -1,5 +1,14 @@
-2024/12/14-04:27:07.095 4c03 Reusing MANIFEST /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmpf_am1ujd/Default/Local Storage/leveldb/MANIFEST-000001
-2024/12/14-04:27:07.106 4c03 Recovering log #29
-2024/12/14-04:27:07.107 4c03 Level-0 table #32: started
-2024/12/14-04:27:07.131 4c03 Level-0 table #32: 14036 bytes OK
-2024/12/14-04:27:07.189 4c03 Delete type=0 #29
+2024/12/14-06:58:59.577 5203 Reusing MANIFEST /private/var/folders/hh/5_1vr0n93vbcm22w9vlxp80w0000gn/T/tmptw74d0fn/Default/Local Storage/leveldb/MANIFEST-000001
+2024/12/14-06:58:59.591 5203 Recovering log #36
+2024/12/14-06:58:59.593 5203 Level-0 table #38: started
+2024/12/14-06:58:59.605 5203 Level-0 table #38: 13579 bytes OK
+2024/12/14-06:58:59.840 5203 Delete type=0 #36
+2024/12/14-06:58:59.873 5103 Compacting 4@0 + 1@1 files
+2024/12/14-06:58:59.904 5103 Generated table #40@0: 92 keys, 7770 bytes
+2024/12/14-06:58:59.904 5103 Compacted 4@0 + 1@1 files => 7770 bytes
+2024/12/14-06:59:00.002 5103 compacted to: files[ 0 1 0 0 0 0 0 ]
+2024/12/14-06:59:00.006 5103 Delete type=2 #38
+2024/12/14-06:59:00.007 5103 Delete type=2 #35
+2024/12/14-06:59:00.007 5103 Delete type=2 #32
+2024/12/14-06:59:00.007 5103 Delete type=2 #27
+2024/12/14-06:59:00.007 5103 Delete type=2 #30

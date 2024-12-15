@@ -658,7 +658,7 @@ class WhatsAppScraper:
                             print(f"Message {idx + 1}: Base64 image src - {image_src}")
                             try:
                                 # Scroll the image into view and wait until it is visible
-                                self.driver.execute_script("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", blob_image)
+                                self.driver.execute_script("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", base64_image)
 
                                 # Check for all overlapping blob images in the same container
                                 image_elements = message.find_elements(By.XPATH, './/img[contains(@src, "blob:")]')
@@ -701,8 +701,16 @@ class WhatsAppScraper:
                         if not temp_file_path:
                             print(f"Message {idx + 1}: Fetching blob failed. Clicking the image to retry.")
                             try:
+                                image_url = None
+                                if blob_image:
+                                    image_url = blob_image
+                                elif base64_image:
+                                    image_url =base64_image
+                                else:
+                                    print("No valid image found, skipping.")
+                                    continue
                                 # Scroll the image into view and wait until it is visible
-                                self.driver.execute_script("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", blob_image)
+                                self.driver.execute_script("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", image_url)
 
                                 # Check for all overlapping blob images in the same container
                                 image_elements = message.find_elements(By.XPATH, './/img[contains(@src, "blob:")]')
@@ -786,6 +794,7 @@ class WhatsAppScraper:
                         })
                     else:
                         temp_file_paths = []  # List to hold paths of all processed images
+                        print(f"image elements{len(image_elements)}")
                         for idx in range(0, len(image_elements), 2):  # Iterate in pairs
                             counter = 0
                             counter += 1
@@ -823,15 +832,16 @@ class WhatsAppScraper:
                                 print(f"Message {idx + 1}: Base64 image src - {image_src}")
                                 try:
                                     # Scroll the image into view and wait until it is visible
-                                    self.driver.execute_script("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", blob_image)
+                                    self.driver.execute_script("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", base64_image)
 
                                     # Check for all overlapping blob images in the same container
                                     image_elements = message.find_elements(By.XPATH, './/img[contains(@src, "blob:")]')
+                                    image_pair = image_elements[idx:idx+2]
 
                                     # Attempt to click each image in order
-                                    for img_idx, img in enumerate(image_elements):
+                                    for img_idx, img in enumerate(image_pair):
                                         try:
-                                            print(f"Trying to click blob image {img_idx + 1}/{len(image_elements)}: {img.get_attribute('src')}")
+                                            print(f"Trying to click blob image {img_idx + 1}/{len(image_elements)/2}: {img.get_attribute('src')}")
                                             self.driver.execute_script("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", img)
                                             WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable(img))
                                             img.click()
@@ -862,21 +872,30 @@ class WhatsAppScraper:
                                 except Exception as e:
                                     print(f"Message {idx + 1}: Error handling fallback for blob fetch. Error: {e}")
 
-                            temp_file_path = None
                             # Fallback to screenshot
                             if not temp_file_path:
                                 print(f"Message {idx + 1}: Fetching blob failed. Clicking the image to retry.")
                                 try:
+                                    image_url = None
+                                    if blob_image:
+                                        image_url = blob_image
+                                    elif base64_image:
+                                        image_url =base64_image
+                                    else:
+                                        print("No valid image found, skipping.")
+                                        continue
                                     # Scroll the image into view and wait until it is visible
-                                    self.driver.execute_script("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", blob_image)
+                                    self.driver.execute_script("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", image_url)
 
                                     # Check for all overlapping blob images in the same container
                                     image_elements = message.find_elements(By.XPATH, './/img[contains(@src, "blob:")]')
+                                    image_pair = image_elements[idx:idx+2]
+
 
                                     # Attempt to click each image in order
-                                    for img_idx, img in enumerate(image_elements):
+                                    for img_idx, img in enumerate(image_pair):
                                         try:
-                                            print(f"Trying to click blob image {img_idx + 1}/{len(image_elements)}: {img.get_attribute('src')}")
+                                            print(f"Trying to click blob image {img_idx + 1}/{len(image_elements)/2}: {img.get_attribute('src')}")
                                             self.driver.execute_script("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", img)
                                             WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable(img))
                                             img.click()

@@ -119,10 +119,11 @@ def scrape_last_10_minutes():
         finally:
             scraper.close()
 
-
-def run_scraper_periodically():
+def run_scraper_periodically(max_retries=3, retry_delay=300):
     """
     Runs the scraper periodically based on last_end_time + 1 minute.
+    Retries on error up to `max_retries` times before moving to the next cycle.
+    Adjusts next_start_time to account for retry delays.
     """
     global last_end_time
 
@@ -143,7 +144,27 @@ def run_scraper_periodically():
                 break  # Exit if stop_event is set
 
         print(f"Starting scraper at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        scrape_last_10_minutes()
+
+        # Retry logic for the scraping process
+        retry_count = 0
+        total_retry_delay = 0  # Track total delay from retries
+        while retry_count < max_retries:
+            try:
+                scrape_last_10_minutes()
+                break  # Exit retry loop on success
+            except Exception as e:
+                retry_count += 1
+                print(f"Error during scraping: {e}")
+                if retry_count < max_retries:
+                    print(f"Retrying scrape in {retry_delay} seconds... (Attempt {retry_count}/{max_retries})")
+                    time.sleep(retry_delay)
+                    total_retry_delay += retry_delay  # Accumulate retry delay
+                else:
+                    print(f"Max retries reached ({max_retries}). Moving to the next cycle.")
+
+        # Adjust next_start_time based on total retry delay
+        last_end_time += timedelta(seconds=total_retry_delay)
+        print(f"Adjusted last_end_time to account for retry delays: {last_end_time.strftime('%Y-%m-%d %H:%M:%S')}")
 
 
 if __name__ == "__main__":
